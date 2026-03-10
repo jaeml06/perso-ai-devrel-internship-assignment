@@ -11,6 +11,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@google/genai": "^1.44.0",
     "clsx": "^2.1.1",
     "ky": "^1.14.3",
     "next": "16.1.6",
