@@ -9,11 +9,12 @@
 
 ## PR 2: AI 더빙 코어 기능 구현 (ElevenLabs API)
 
-- [ ] 1. 서버 사이드 ElevenLabs TTS API 통신 래퍼(Wrapper) 로직 구현 (`entities/dubbing/api/synthesizeSpeech.ts`).
-- [ ] 2. 텍스트 입력 및 음성 선택을 위한 메인 사용자 대시보드 인터페이스 제작 (`features/dubbing-create/ui/DubbingDashboard.tsx`).
-- [ ] 3. 더빙 생성 폼(사용자 입력, 텍스트 상태 관리, 로딩 처리 등) 비즈니스 로직 훅 구현 (`features/dubbing-create/model/useDubbingForm.ts`).
-- [ ] 4. 생성된 오디오 버퍼를 재생할 수 있는 Audio Player UI 및 다운로드 기능 구현 (`features/dubbing-view/ui/AudioPlayer.tsx`).
-- [ ] 5. E2E 테스트: 인가된 구글 계정 사용자가 메인 페이지에서 더빙 요청을 성공적으로 수행 플로우 최종 점검.
+- [ ] 1. 오디오/비디오 파일 업로드 UI 및 타겟 언어 선택 인터페이스 구현 (`features/dubbing-create/ui/DubbingDashboard.tsx`).
+- [ ] 2. 서버 사이드 ElevenLabs API를 활용한 음성 추출 및 전사(Speech-to-Text) 로직 구현 (`entities/dubbing/api/transcribeSpeech.ts`).
+- [ ] 3. 전사된 텍스트를 타겟 언어로 번역하는 AI 번역 로직 구현 (`entities/dubbing/api/translateText.ts`).
+- [ ] 4. 번역된 텍스트를 타겟 언어 음성으로 합성하는 ElevenLabs TTS 로직 구현 (`entities/dubbing/api/synthesizeSpeech.ts`).
+- [ ] 5. 더빙 생성 폼(파일 업로드, 언어 선택, 상태 관리, 로딩 처리 등) 비즈니스 로직 훅 구현 (`features/dubbing-create/model/useDubbingForm.ts`).
+- [ ] 6. 더빙된 결과물 재생 Audio Player UI 및 다운로드 기능 구현 (`features/dubbing-view/ui/AudioPlayer.tsx`).
 
 ## PR 3: 인증 시스템 및 Turso DB 세팅 (Google OAuth + Whitelist 제어)
 
