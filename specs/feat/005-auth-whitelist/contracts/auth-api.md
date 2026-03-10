@@ -45,9 +45,11 @@ export const { GET, POST } = handlers;
 - **반환**: `Session | null`
 - **용도**: 현재 로그인 사용자 정보 조회
 
-## Middleware Route Protection
+## Proxy Route Protection
 
-### `src/middleware.ts`
+> **Note**: Next.js 16에서 `middleware.ts`가 `proxy.ts`로 rename됨. export명도 `middleware` → `proxy`로 변경.
+
+### `src/proxy.ts`
 
 | Route Pattern | 비로그인 사용자 | 로그인 사용자 |
 | --- | --- | --- |

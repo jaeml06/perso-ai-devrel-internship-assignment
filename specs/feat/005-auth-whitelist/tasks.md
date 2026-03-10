@@ -24,9 +24,9 @@
 
 **Purpose**: Install dependencies and configure environment for auth feature
 
-- [ ] T001 Install auth dependencies: `npm install next-auth@beta @libsql/client`
-- [ ] T002 [P] Create environment variables template in `.env.example` for `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`
-- [ ] T003 [P] Add environment variables to `.env.local` (actual values)
+- [x] T001 Install auth dependencies: `npm install next-auth@beta @libsql/client`
+- [x] T002 [P] Create environment variables template in `.env.example` for `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`
+- [x] T003 [P] Add environment variables to `.env.local` (actual values)
 
 ---
 
@@ -36,14 +36,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create AllowedUser DTO type in `src/entities/user/dto/user.dto.ts`
-- [ ] T005 [P] Create Turso client singleton in `src/shared/lib/turso.ts`
-- [ ] T006 Create DB whitelist query functions (`isEmailWhitelisted`, `addAllowedUser`) in `src/shared/lib/whitelist.ts` (depends on T005)
-- [ ] T007 Create Edge-safe auth config with Google provider, custom pages (`/login`, `/unauthorized`), and `authorized` callback in `src/auth.config.ts`
-- [ ] T008 Create main NextAuth config extending `auth.config.ts` with stub `signIn` callback (returns `true`) in `src/auth.ts` — whitelist wiring deferred to T018
-- [ ] T009 Create NextAuth route handler (`export { GET, POST }` from `@/auth`) in `src/app/api/auth/[...nextauth]/route.ts`
-- [ ] T010 Create middleware for route protection importing `auth.config.ts` with matcher config in `src/middleware.ts`
-- [ ] T011 Create Turso DB seed script to initialize `allowed_users` table and insert `kts123@estsoft.com` in `scripts/seed.ts`
+- [x] T004 Create AllowedUser DTO type in `src/entities/user/dto/user.dto.ts`
+- [x] T005 [P] Create Turso client singleton in `src/shared/lib/turso.ts`
+- [x] T006 Create DB whitelist query functions (`isEmailWhitelisted`, `addAllowedUser`) in `src/shared/lib/whitelist.ts` (depends on T005)
+- [x] T007 Create Edge-safe auth config with Google provider, custom pages (`/login`, `/unauthorized`), and `authorized` callback in `src/auth.config.ts`
+- [x] T008 Create main NextAuth config extending `auth.config.ts` with stub `signIn` callback (returns `true`) in `src/auth.ts` — whitelist wiring deferred to T018
+- [x] T009 Create NextAuth route handler (`export { GET, POST }` from `@/auth`) in `src/app/api/auth/[...nextauth]/route.ts`
+- [x] T010 Create proxy for route protection importing `auth.config.ts` with matcher config in `src/proxy.ts` (Next.js 16: `middleware.ts` → `proxy.ts`, export `proxy` instead of `middleware`)
+- [x] T011 Create Turso DB seed script to initialize `allowed_users` table and insert `kts123@estsoft.com` in `scripts/seed.ts`
 
 **Checkpoint**: Foundation ready — auth infrastructure in place, user story implementation can now begin
 
@@ -59,21 +59,21 @@
 
 ### Tests for User Story 1 & 2 (TDD — write FIRST, ensure they FAIL) ⚠️
 
-- [ ] T012 [P] [US1] Write pure function tests for `isProtectedRoute` in `src/__tests__/features/auth-login/lib/isProtectedRoute.test.ts` — `/dashboard` → true, `/login` → false, `/` → false, `/api/auth/*` → false
-- [ ] T013 [P] [US2] Write pure function tests for `checkWhitelist` in `src/__tests__/features/auth-login/lib/checkWhitelist.test.ts` — 허용 이메일 → true, 미등록 → false, null 이메일 → false, DB 에러 → false (fail-closed)
-- [ ] T014 [P] [US1] Write unit tests for `isEmailWhitelisted` with mocked Turso in `src/__tests__/shared/lib/whitelist.test.ts` — 존재 이메일 → true, 미존재 → false, DB 에러 throw
-- [ ] T015 [P] [US2] Write render test for `UnauthorizedPage` in `src/__tests__/features/auth-login/ui/UnauthorizedPage.test.tsx` — 차단 메시지 표시, 로그인 페이지 링크 확인
+- [x] T012 [P] [US1] Write pure function tests for `isProtectedRoute` in `src/__tests__/features/auth-login/lib/isProtectedRoute.test.ts` — `/dashboard` → true, `/login` → false, `/` → false, `/api/auth/*` → false
+- [x] T013 [P] [US2] Write pure function tests for `checkWhitelist` in `src/__tests__/features/auth-login/lib/checkWhitelist.test.ts` — 허용 이메일 → true, 미등록 → false, null 이메일 → false, DB 에러 → false (fail-closed)
+- [x] T014 [P] [US1] Write unit tests for `isEmailWhitelisted` with mocked Turso in `src/__tests__/shared/lib/whitelist.test.ts` — 존재 이메일 → true, 미존재 → false, DB 에러 throw
+- [x] T015 [P] [US2] Write render test for `UnauthorizedPage` in `src/__tests__/features/auth-login/ui/UnauthorizedPage.test.tsx` — 차단 메시지 표시, 로그인 페이지 링크 확인
 
 ### Implementation for User Story 1 & 2
 
-- [ ] T016 [P] [US1] Implement `isProtectedRoute(pathname): boolean` pure function in `src/features/auth-login/lib/isProtectedRoute.ts`
-- [ ] T017 [P] [US2] Implement `checkWhitelist(email, isWhitelistedFn): Promise<boolean>` pure function in `src/features/auth-login/lib/checkWhitelist.ts`
-- [ ] T018 [US1] Wire `checkWhitelist` into `signIn` callback in `src/auth.ts` — replace stub with `checkWhitelist(profile.email, isEmailWhitelisted)`, import from `shared/lib/whitelist.ts`
-- [ ] T019 [US2] Create `UnauthorizedPage` component with 차단 안내 메시지 and 로그인 페이지 링크 in `src/features/auth-login/ui/UnauthorizedPage.tsx`
-- [ ] T020 [US2] Create `/unauthorized` route page (thin routing → `UnauthorizedPage`) in `src/app/unauthorized/page.tsx`
-- [ ] T021 [US1] Verify `authorized` callback in `src/auth.config.ts` redirects unauthenticated users to `/login` for protected routes
-- [ ] T022 [US1] Write route handler integration test in `src/__tests__/app/api/auth/nextauth.route.test.ts` — verify GET/POST handlers export from `@/auth`
-- [ ] T023 [US1] Run tests for US1 & US2 — all T012–T015, T022 must PASS (green)
+- [x] T016 [P] [US1] Implement `isProtectedRoute(pathname): boolean` pure function in `src/features/auth-login/lib/isProtectedRoute.ts`
+- [x] T017 [P] [US2] Implement `checkWhitelist(email, isWhitelistedFn): Promise<boolean>` pure function in `src/features/auth-login/lib/checkWhitelist.ts`
+- [x] T018 [US1] Wire `checkWhitelist` into `signIn` callback in `src/auth.ts` — replace stub with `checkWhitelist(profile.email, isEmailWhitelisted)`, import from `shared/lib/whitelist.ts`
+- [x] T019 [US2] Create `UnauthorizedPage` component with 차단 안내 메시지 and 로그인 페이지 링크 in `src/features/auth-login/ui/UnauthorizedPage.tsx`
+- [x] T020 [US2] Create `/unauthorized` route page (thin routing → `UnauthorizedPage`) in `src/app/unauthorized/page.tsx`
+- [x] T021 [US1] Implement `authorized` callback in `src/auth.config.ts`: (1) unauthenticated users on protected routes → `/login`, (2) already-logged-in users on `/login` → `/dashboard` (fix: prevent logged-in users from staying on login page)
+- [x] T022 [US1] Write route handler integration test in `src/__tests__/app/api/auth/nextauth.route.test.ts` — verify GET/POST handlers export from `@/auth`
+- [x] T023 [US1] Run tests for US1 & US2 — all T012–T015, T022 must PASS (green)
 
 **Checkpoint**: 화이트리스트 기반 인증 핵심 로직 완성 — 허용/차단 플로우 모두 동작
 
@@ -87,15 +87,15 @@
 
 ### Tests for User Story 3 (TDD — write FIRST) ⚠️
 
-- [ ] T024 [P] [US3] Write render test for `LoginPage` in `src/__tests__/features/auth-login/ui/LoginPage.test.tsx` — Google 로그인 버튼 렌더링 확인
-- [ ] T025 [P] [US3] Write test for `GoogleLoginButton` in `src/__tests__/features/auth-login/ui/GoogleLoginButton.test.tsx` — 클릭 시 `signIn("google")` 호출 확인
+- [x] T024 [P] [US3] Write render test for `LoginPage` in `src/__tests__/features/auth-login/ui/LoginPage.test.tsx` — Google 로그인 버튼 렌더링 확인
+- [x] T025 [P] [US3] Write test for `GoogleLoginButton` in `src/__tests__/features/auth-login/ui/GoogleLoginButton.test.tsx` — 클릭 시 `signIn("google", { callbackUrl: "/dashboard" })` 호출 확인
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create `GoogleLoginButton` component (Server Action calling `signIn("google")`) in `src/features/auth-login/ui/GoogleLoginButton.tsx`
-- [ ] T027 [US3] Create `LoginPage` component — 미니멀 중앙 정렬 카드 + 서비스 로고 + Google 로그인 버튼 in `src/features/auth-login/ui/LoginPage.tsx`
-- [ ] T028 [US3] Create `/login` route page (thin routing → `LoginPage`) in `src/app/login/page.tsx`
-- [ ] T029 [US3] Run tests for US3 — T024, T025 must PASS (green)
+- [x] T026 [P] [US3] Create `GoogleLoginButton` client component (`'use client'`, `next-auth/react` signIn) calling `signIn("google", { callbackUrl: "/dashboard" })` in `src/features/auth-login/ui/GoogleLoginButton.tsx`
+- [x] T027 [US3] Create `LoginPage` component — 미니멀 중앙 정렬 카드 + 서비스 로고 + Google 로그인 버튼 in `src/features/auth-login/ui/LoginPage.tsx`
+- [x] T028 [US3] Create `/login` route page (thin routing → `LoginPage`) in `src/app/login/page.tsx`
+- [x] T029 [US3] Run tests for US3 — T024, T025 must PASS (green)
 
 **Checkpoint**: 로그인 UI 완성 — 비로그인 → 로그인 페이지 → Google OAuth 플로우 연결
 
@@ -109,8 +109,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T030 [US4] Create `useAuthSession` hook for session state management in `src/features/auth-login/model/useAuthSession.ts`
-- [ ] T031 [US4] Add logout button/action (Server Action calling `signOut()`) to existing dashboard or layout — redirect to `/login` after signOut
+- [x] T030 [US4] Create `useAuthSession` hook for session state management in `src/features/auth-login/model/useAuthSession.ts`
+- [x] T031 [US4] Add `LogoutButton` (Server Action calling `signOut({ redirectTo: '/login' })`) in `src/features/auth-login/ui/LogoutButton.tsx`; conditionally render in `LayoutShell` only when `session?.user` exists (async server component calling `auth()`)
 
 **Checkpoint**: 로그아웃 기능 완성 — 전체 인증 플로우(로그인 → 서비스 이용 → 로그아웃) 완결
 
@@ -120,11 +120,11 @@
 
 **Purpose**: Edge cases, security hardening, validation
 
-- [ ] T032 [P] Handle edge case: DB connection failure → fail-closed (접근 차단) — verify in `checkWhitelist` and `whitelist.ts`
-- [ ] T033 [P] Handle edge case: Google OAuth 취소 → `/login` 복귀 확인
-- [ ] T034 [P] Handle edge case: 세션 만료 시 보호 페이지 접근 → `/login` 리다이렉트 확인
-- [ ] T035 Run full test suite (`npm test`) and verify all tests pass
-- [ ] T036 Run linter (`npm run lint`) and fix any issues
+- [x] T032 [P] Handle edge case: DB connection failure → fail-closed (접근 차단) — verify in `checkWhitelist` and `whitelist.ts`
+- [x] T033 [P] Handle edge case: Google OAuth 취소 → `/login` 복귀 확인
+- [x] T034 [P] Handle edge case: 세션 만료 시 보호 페이지 접근 → `/login` 리다이렉트 확인
+- [x] T035 Run full test suite (`npm test`) and verify all tests pass
+- [x] T036 Run linter (`npm run lint`) and fix any issues
 
 ---
 

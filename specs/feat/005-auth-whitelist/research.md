@@ -49,7 +49,7 @@
 - `@libsql/client`는 Node.js API 의존 — Edge에서 import 불가
 - `auth.config.ts` (Edge-safe): providers + `authorized` callback만 포함
 - `auth.ts` (Node.js): `auth.config.ts` 확장 + `signIn` callback (Turso 화이트리스트 체크)
-- `middleware.ts`는 `auth.config.ts`만 import → Edge 호환 유지
+- `proxy.ts`는 `auth.config.ts`만 import → Edge 호환 유지 (Next.js 16: `middleware.ts` → `proxy.ts`)
 
 ### Alternatives Considered
 

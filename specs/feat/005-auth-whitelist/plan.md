@@ -53,7 +53,7 @@ specs/feat/005-auth-whitelist/
 src/
 ├── auth.ts                              # NextAuth v5 main config (server-only, Turso import)
 ├── auth.config.ts                       # Edge-safe config (providers, pages, authorized callback)
-├── middleware.ts                        # Route protection (imports auth.config only)
+├── proxy.ts                             # Route protection (imports auth.config only) — Next.js 16 proxy convention
 │
 ├── app/
 │   ├── api/
@@ -128,11 +128,12 @@ TDD 관점에서 **테스트 먼저 작성** 후 구현하는 순서:
 
 1. `LoginPage` — Google 로그인 버튼 렌더링
 2. `UnauthorizedPage` — 차단 메시지 렌더링
-3. `GoogleLoginButton` — 클릭 시 signIn 호출
+3. `GoogleLoginButton` — client component, 클릭 시 `signIn("google", { callbackUrl: "/dashboard" })` 호출
+4. `LayoutShell` — async server component, `auth()`로 세션 확인 후 `LogoutButton` 조건부 렌더링
 
 #### Layer 4: 통합 (middleware + NextAuth 콜백)
 
-1. `authorized` callback — 세션 유무에 따른 리다이렉트
+1. `authorized` callback — 양방향 리다이렉트: 비로그인 사용자 보호 경로 → `/login`, 로그인 사용자 `/login` → `/dashboard`
 2. `signIn` callback — 화이트리스트 체크 + fail-closed
 
 ### 테스트 가능성을 위한 설계 원칙
@@ -160,4 +161,5 @@ TDD 관점에서 **테스트 먼저 작성** 후 구현하는 순서:
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 | --- | --- | --- |
-| `auth.ts`/`auth.config.ts`를 `src/` 루트에 배치 (FSD 레이어 외부) | NextAuth v5 컨벤션 필수. `middleware.ts`가 `auth.config.ts`를 같은 레벨에서 import해야 함 | `shared/config/`에 넣으면 NextAuth의 `handlers` export 패턴과 충돌 |
+| `auth.ts`/`auth.config.ts`를 `src/` 루트에 배치 (FSD 레이어 외부) | NextAuth v5 컨벤션 필수. `proxy.ts`가 `auth.config.ts`를 같은 레벨에서 import해야 함 | `shared/config/`에 넣으면 NextAuth의 `handlers` export 패턴과 충돌 |
+| `middleware.ts` → `proxy.ts` 변경 (Next.js 16) | Next.js 16에서 `middleware` 파일 컨벤션이 deprecated되어 `proxy`로 rename됨. export명도 `middleware` → `proxy`로 변경 | — |
