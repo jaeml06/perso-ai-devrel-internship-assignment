@@ -164,6 +164,124 @@ export function getElevenLabsApiKey(): string {
   if (!key) throw new Error('ELEVENLABS_API_KEY is not set');
   return key;
 }
+
+export function getGeminiApiKey(): string {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY is not set');
+  return key;
+}
 ```
 
 **Rationale**: 미설정 시 서버 시작 단계에서 즉시 에러 → FR-011 충족. `NEXT_PUBLIC_` 접두사 없이 클라이언트 번들에서 제외.
+
+---
+
+## 9. ElevenLabs Speech-to-Text (STT) API
+
+### Decision: `POST https://api.elevenlabs.io/v1/speech-to-text` (multipart/form-data)
+
+**Request**:
+```
+POST https://api.elevenlabs.io/v1/speech-to-text
+Content-Type: multipart/form-data
+xi-api-key: {ELEVENLABS_API_KEY}
+
+file: <binary file data>  (audio/video)
+model_id: scribe_v1
+```
+
+**Response**:
+```json
+{
+  "text": "transcribed text here",
+  "language_code": "en",
+  "language_probability": 0.99,
+  "words": [...]
+}
+```
+
+**Supported formats**: mp3, wav, ogg, flac, m4a, mp4, mov, webm (ElevenLabs가 직접 처리, 서버 변환 불필요)
+
+**File size limit**: 25MB (ElevenLabs 제한)
+
+**Empty transcription handling**: `text`가 비어 있으면 "음성을 감지하지 못했습니다" 에러 반환
+
+**Route Handler 구현 방식**: Next.js `request.formData()`로 파일 수신 → 네이티브 `fetch`로 ElevenLabs 전달
+- `FormData.get('file')` → `File` 객체 → ElevenLabs로 전달
+
+**Alternatives considered**:
+- ElevenLabs Node.js SDK: 추가 의존성, 직접 fetch로 충분 → 거절
+- 서버에서 파일 임시 저장 후 전달: 불필요한 I/O, in-memory 처리로 충분 → 거절
+
+---
+
+## 10. Google Gemini Translation API
+
+### Decision: 직접 REST API (`@google/genai` SDK 사용)
+
+**Package**: `@google/genai` (Google 통합 JS SDK — Gemini 2.0+부터 권장, 레거시 `@google/generative-ai` 대체)
+
+**Model**: `gemini-3.1-flash-lite-preview` (spec 명시, 무료 플랜 사용 가능)
+
+**Request pattern**:
+```typescript
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({ apiKey });
+const response = await ai.models.generateContent({
+  model: 'gemini-3.1-flash-lite-preview',
+  contents: prompt,
+});
+const translatedText = response.text;
+```
+
+**Same-language optimization**: 소스 언어 = 타겟 언어인 경우 Gemini 호출 없이 원문 그대로 반환 (불필요한 API 호출 방지)
+
+**Route Handler**: `POST /api/translate` → Gemini 호출 → `{ translatedText: string }` 반환
+
+**Language detection**: ElevenLabs STT 응답의 `language_code`로 소스 언어 자동 감지
+
+**Alternatives considered**:
+- 직접 REST API (fetch): SDK가 인증/에러처리 편의성 제공 → SDK 채택
+- DeepL / LibreTranslate: 별도 API 키, spec에서 Gemini 지정 → 거절
+- Claude Haiku for translation: 무료 플랜 없음, Gemini 지정 → 거절
+
+---
+
+## 11. 파일 업로드 (Next.js 16 App Router)
+
+### Decision: `request.formData()` → `FormData.get('file')` → `File` 객체
+
+**Next.js 16 App Router Route Handler 패턴**:
+```typescript
+export async function POST(request: NextRequest) {
+  const formData = await request.formData();
+  const file = formData.get('file') as File | null;
+  if (!file) return NextResponse.json({ error: '파일을 업로드해주세요' }, { status: 400 });
+
+  // ElevenLabs에 전달할 FormData 재구성
+  const elevenLabsForm = new FormData();
+  elevenLabsForm.append('file', file);
+  elevenLabsForm.append('model_id', 'scribe_v1');
+  // ...
+}
+```
+
+**클라이언트 전송 방식**:
+```typescript
+// entities/dubbing/api/transcribeFile.ts
+const formData = new FormData();
+formData.append('file', file);
+const response = await ky.post('/api/stt', { body: formData });
+```
+
+**파일 검증 (클라이언트 lib)**:
+- 허용 MIME types: `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/flac`, `audio/mp4`, `audio/x-m4a`, `video/mp4`, `video/quicktime`, `video/webm`
+- 허용 확장자 (MIME이 불명확한 경우 fallback): `.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.mp4`, `.mov`, `.webm`
+- 최대 크기: 25MB (= 25 * 1024 * 1024 bytes)
+
+**Rationale**: `formData()` API는 Next.js 16 기본 지원, 추가 패키지 불필요. 서버 측 파일 임시 저장 없이 메모리에서 처리.
+
+**Alternatives considered**:
+- `multer` 미들웨어: App Router와 호환성 복잡 → 거절
+- `busboy`: 직접 스트림 처리, formData()보다 복잡 → 거절

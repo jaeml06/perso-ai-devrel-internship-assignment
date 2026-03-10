@@ -1,166 +1,161 @@
-# Tasks: AI 더빙 코어 기능 (ElevenLabs TTS)
+# Tasks: AI 더빙 코어 (파일 업로드 → STT → 번역 → TTS)
 
 **Input**: Design documents from `/specs/feat/003-ai-dubbing-core/`
-**Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅
+**Prerequisites**: plan.md ✅, spec.md ✅, data-model.md ✅, research.md ✅, contracts/POST-stt.md ✅, contracts/POST-translate.md ✅
+**TDD**: Tests are REQUIRED — spec.md and plan.md explicitly mandate TDD (Red → Green per stage)
 
-**Tests**: TDD 접근 명시 (plan.md) — 각 레이어별 테스트 먼저(Red-Green-Refactor) 포함
-
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+> **Context**: 이전 스펙(텍스트 → TTS)은 이미 구현 완료(T001–T031 ✅). 이번 태스크는 요구사항 변경으로 인해 전체 파이프라인(파일 업로드 → STT → 번역 → TTS)으로 교체하는 작업이다.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- Include exact file paths in descriptions
+- **[Story]**: Which user story this task belongs to (US1–US5)
+- Exact file paths are included in each description
 
 ## Path Conventions
 
-- **Single project**: `src/` at repository root (Next.js 16 App Router + FSD)
+Single Next.js project at repository root. FSD architecture:
+
+```text
+src/app/api/                              → Next.js Route Handlers (server)
+src/entities/dubbing/dto/                 → TypeScript DTOs
+src/entities/dubbing/api/                 → Entity API functions (ky client)
+src/features/dubbing-create/lib/          → Pure utility functions
+src/features/dubbing-create/model/        → React hooks (pipeline state)
+src/features/dubbing-create/ui/           → UI components
+src/shared/config/                        → Server-only config
+src/__tests__/                            → Centralized test files
+```
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup
 
-**Purpose**: 프로젝트 의존성 추가 및 기본 환경 구성
+**Purpose**: Install new dependency required by all subsequent phases
 
-- [x] T001 Install required dependencies: `npm install ky zod`
-- [x] T002 [P] Create `.env.local` with `ELEVENLABS_API_KEY` placeholder and add `.env.local` to `.gitignore` (if not already)
-- [x] T003 [P] Create `.env.example` with `ELEVENLABS_API_KEY=your_api_key_here` for documentation
+- [x] T001 Install `@google/genai` package: `npm install @google/genai`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: 모든 User Story가 의존하는 공통 타입, 환경변수 모듈, 유효성 검증 함수
+**Purpose**: Updated DTOs and env config needed by ALL new user stories
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-### Tests for Foundational
+- [x] T002 Update `src/entities/dubbing/dto/dubbing.dto.ts` — add new pipeline types: `TranscriptionResult`, `TranslationResult`, `DubbingPipelineStatus`, `FileValidationErrors`, `FileValidationResult`, `AudioResult`; add constants `SUPPORTED_EXTENSIONS`, `SUPPORTED_MIME_TYPES`, `MAX_FILE_SIZE_BYTES`, `PIPELINE_STATUS_MESSAGES` (as specified in data-model.md)
+- [x] T003 [P] Write RED test: add `getGeminiApiKey()` cases to `src/__tests__/shared/config/env.test.ts` — throws when `GEMINI_API_KEY` unset, returns value when set
+- [x] T004 [P] Update `src/shared/config/env.ts` — add `getGeminiApiKey(): string` that throws `Error('GEMINI_API_KEY is not set')` when env var missing (GREEN for T003)
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [x] T004 [P] Write env config test in `src/__tests__/shared/config/env.test.ts` — `getElevenLabsApiKey()` 미설정 시 에러 throw 확인, 설정 시 값 반환 확인
-- [x] T005 [P] Write validation test in `src/__tests__/features/dubbing-create/lib/validateDubbingInput.test.ts` — 빈 텍스트 거부, 5000자 초과 거부, voiceId 미선택 거부, 유효하지 않은 language 거부, 유효한 입력 통과
-
-### Implementation for Foundational
-
-- [x] T006 [P] Create Voice entity DTOs in `src/entities/voice/dto/voice.dto.ts` — `Voice`, `VoiceGender`, `VoiceAgeGroup`, `VoiceListResponse` 타입
-- [x] T007 [P] Create Dubbing entity DTOs in `src/entities/dubbing/dto/dubbing.dto.ts` — `DubbingRequest`, `DubbingResponse`, `DubbingStatus`, `DubbingLanguage`, `ValidationResult` 타입
-- [x] T008 [P] Implement env config module in `src/shared/config/env.ts` — `getElevenLabsApiKey()` 서버 전용 환경변수 접근 (미설정 시 에러 throw)
-- [x] T009 Implement validation function in `src/features/dubbing-create/lib/validateDubbingInput.ts` — 순수 함수: text (1~5000자), voiceId (필수), language (`ko`|`en`) 검증 (depends on T007)
-
-**Checkpoint**: Foundation ready — 공통 타입, 환경변수, 유효성 검증 함수가 모두 준비됨. T004, T005 테스트 GREEN 확인.
+**Checkpoint**: DTOs and env config updated — user story implementation can now begin
 
 ---
 
-## Phase 3: User Story 1 — ElevenLabs API 키 준비 (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 — 파일 업로드 및 언어 선택 (Priority: P1) 🎯 MVP
 
-**Goal**: 개발자가 ElevenLabs API 키를 환경 변수에 설정하면 TTS 기능이 동작할 수 있는 기반이 마련된다. API 키 미설정 시 명확한 에러를 반환한다.
+**Goal**: 사용자가 오디오/비디오 파일을 업로드하고 타겟 언어와 음성을 선택한다. 클라이언트 검증이 즉각적인 피드백을 제공한다. 모든 입력이 유효할 때 "더빙 생성" 버튼이 활성화된다.
 
-**Independent Test**: 환경 변수 설정 후 `GET /api/voices` 호출 시 200 응답을 받고, API 키 미설정 상태에서 `POST /api/tts` 호출 시 500 에러와 명확한 메시지를 받는다.
+**Independent Test**: mp3 파일 업로드 + 언어 선택 + 음성 선택 → 버튼 활성화. pdf 업로드 → "지원하지 않는 파일 형식입니다". 파일 없이 제출 → "파일을 업로드해주세요".
 
-### Tests for User Story 1
+### Tests for User Story 1 (TDD — write FIRST, must FAIL before implementation)
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [x] T010 [P] [US1] Write GET /api/voices route test in `src/__tests__/app/api/voices.route.test.ts` — 200 반환, 6개 음성 반환, 필수 필드(id, name, gender, ageGroup, previewUrl, description) 확인, female/male 포함, young/middle 포함
-- [x] T011 [P] [US1] Write POST /api/tts route test (API key error cases) in `src/__tests__/app/api/tts.route.test.ts` — API 키 미설정 시 500, 빈 텍스트 400, 5001자 400, voiceId 빈값 400, 잘못된 language 400
+- [x] T005 Write RED test `src/__tests__/features/dubbing-create/lib/validateFileInput.test.ts` — cases: no file → `errors.file = "파일을 업로드해주세요"`, unsupported format (pdf) → `errors.file = "지원하지 않는 파일 형식입니다"`, >25MB → `errors.file = "파일 크기가 25MB를 초과합니다"`, no voiceId → `errors.voiceId = "음성을 선택해주세요"`, no language → `errors.language = "타겟 언어를 선택해주세요"`, valid mp3+voiceId+language → `isValid: true`, valid mp4 (video) → `isValid: true`
 
 ### Implementation for User Story 1
 
-- [x] T012 [US1] Implement GET /api/voices route handler in `src/app/api/voices/route.ts` — `PREMADE_VOICES` 6개 정적 상수 + `NextResponse.json()` 반환 (depends on T006)
-- [x] T013 [US1] Implement POST /api/tts route handler (zod validation + env check) in `src/app/api/tts/route.ts` — zod 스키마 검증, `getElevenLabsApiKey()` 호출, ElevenLabs API fetch + 에러 핸들링 (401→503, 429→429, 기타→502), 성공 시 `audio/mpeg` 반환 (depends on T008, T009)
+- [x] T006 [US1] Implement `src/features/dubbing-create/lib/validateFileInput.ts` — pure function: MIME type check → extension fallback (for files with ambiguous MIME) → file size → voiceId/language presence; returns `FileValidationResult` (GREEN for T005)
+- [x] T007 [US1] Replace `src/features/dubbing-create/ui/DubbingForm.tsx` — swap textarea for `<input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a,.mp4,.mov,.webm">`, display selected filename, show `validationErrors.file` inline, use function declaration
 
-**Checkpoint**: `GET /api/voices` → 200 + 6개 음성. `POST /api/tts` → 키 미설정 시 500. T010, T011 테스트 GREEN 확인.
+- [x] T027 Delete `src/features/dubbing-create/lib/validateDubbingInput.ts` — superseded by `validateFileInput.ts` (T006); no longer used in main flow per plan.md
 
----
-
-## Phase 4: User Story 3 — 사용 가능한 음성 목록 조회 (Priority: P1)
-
-**Goal**: 사용자가 대시보드에서 성별·나이대로 분류된 6개 음성을 드롭다운으로 보고, 선택 시 미리듣기로 샘플을 재생할 수 있다.
-
-**Independent Test**: 대시보드 로드 시 드롭다운에 6개 음성 표시, 선택 시 미리듣기 재생, API 에러 시 에러 메시지와 재시도 버튼 표시.
-
-### Tests for User Story 3
-
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [x] T014 [P] [US3] Write getVoices entity API test in `src/__tests__/entities/voice/api/getVoices.test.ts` — `/api/voices` 호출 → 음성 배열 반환, API 에러 시 예외 throw
-- [x] T015 [P] [US3] Write VoiceSelector component test in `src/__tests__/features/dubbing-create/ui/VoiceSelector.test.tsx` — 음성 목록 드롭다운 표시, 선택 시 onChange 호출, 미리듣기 버튼 표시, 미리듣기 클릭 시 오디오 재생, API 에러 시 에러 메시지와 재시도 버튼 표시
-
-### Implementation for User Story 3
-
-- [x] T016 [US3] Implement getVoices entity API in `src/entities/voice/api/getVoices.ts` — ky로 `GET /api/voices` 호출, `VoiceListResponse` 반환 (depends on T006)
-- [x] T017 [US3] Implement VoiceSelector component in `src/features/dubbing-create/ui/VoiceSelector.tsx` — 드롭다운 (성별·나이대 라벨), 미리듣기 버튼 (`<audio>` + previewUrl), 에러 표시 + 재시도, function declaration (depends on T016)
-
-**Checkpoint**: VoiceSelector 렌더링 → 6개 음성 드롭다운 표시, 선택 후 미리듣기 재생. T014, T015 테스트 GREEN 확인.
+**Checkpoint**: File upload form validates correctly and independently — no API calls needed to test US1
 
 ---
 
-## Phase 5: User Story 2 — 텍스트를 음성으로 변환 (Priority: P1)
+## Phase 4: User Story 2 — 음성 전사(STT) (Priority: P1)
 
-**Goal**: 사용자가 텍스트를 입력하고 음성·언어를 선택하여 "더빙 생성"을 누르면 오디오가 생성된다. 유효성 에러 시 즉각 피드백을 제공한다.
+**Goal**: 업로드된 파일을 `/api/stt` Route Handler로 전달하면 ElevenLabs STT API가 텍스트로 전사한다. Route Handler와 Entity API 각각 독립적으로 테스트 가능하다.
 
-**Independent Test**: 대시보드에서 텍스트 입력 + 음성 선택 + 더빙 생성 → 오디오 생성됨. 빈 텍스트/음성 미선택 시 에러 메시지 표시.
+**Independent Test**: 알려진 내용의 오디오를 POST `/api/stt` → `{ text, languageCode, languageProbability }` 반환. 파일 없음 → 400. ElevenLabs 429 → 429. 무음 파일 → 400 "음성을 감지하지 못했습니다".
 
-### Tests for User Story 2
+### Tests for User Story 2 (TDD — write FIRST, must FAIL before implementation)
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [x] T018 [P] [US2] Write POST /api/tts route test (success + ElevenLabs error cases) in `src/__tests__/app/api/tts.route.test.ts` — 유효 요청 → 200 + audio/mpeg, ElevenLabs 401 → 503, ElevenLabs 429 → 429, ElevenLabs 500 → 502 (T011에서 validation 테스트 이미 작성됨, 여기서 추가 케이스)
-- [x] T019 [P] [US2] Write createDubbing entity API test in `src/__tests__/entities/dubbing/api/createDubbing.test.ts` — `/api/tts` POST 호출, 오디오 Blob 반환, 400 에러 시 메시지 포함 예외 throw
-- [x] T020 [P] [US2] Write useDubbingCreate hook test in `src/__tests__/features/dubbing-create/model/useDubbingCreate.test.tsx` — 초기 상태, 빈 텍스트 제출 시 유효성 에러, 음성 미선택 제출 시 에러, 제출 중 isLoading true, 성공 시 audioUrl 설정, 성공 후 isLoading false, API 에러 시 errorMessage, 중복 제출 방지
-- [x] T021 [P] [US2] Write DubbingForm component test in `src/__tests__/features/dubbing-create/ui/DubbingForm.test.tsx` — 텍스트 입력란 + 음성 선택 + 언어 선택 + 제출 버튼 렌더링, 글자 수 카운터 "0/5000", 빈 텍스트 제출 시 에러 메시지, 로딩 중 제출 버튼 비활성화
+- [x] T008 [P] Write RED test `src/__tests__/app/api/stt.route.test.ts` — cases: no `file` field → 400, valid file → 200 `{ text, languageCode, languageProbability }`, empty transcription text → 400 "음성을 감지하지 못했습니다", ElevenLabs 429 → 429 "크레딧이 부족합니다", ElevenLabs 401 → 503 "서비스를 일시적으로 사용할 수 없습니다", `ELEVENLABS_API_KEY` unset → 500, other ElevenLabs error → 502
+- [x] T009 [P] Write RED test `src/__tests__/entities/dubbing/api/transcribeFile.test.ts` — cases: success → returns `TranscriptionResult`, error response → throws
 
 ### Implementation for User Story 2
 
-- [x] T022 [US2] Implement createDubbing entity API in `src/entities/dubbing/api/createDubbing.ts` — ky로 `POST /api/tts` 호출, `response.blob()` → `URL.createObjectURL(blob)` → audioUrl 반환 (depends on T007)
-- [x] T023 [US2] Implement useDubbingCreate hook in `src/features/dubbing-create/model/useDubbingCreate.ts` — text/voiceId/language 상태, 제출 시 validateDubbingInput → createDubbing 호출, isLoading/audioUrl/errorMessage/validationErrors 관리, 중복 제출 방지 (depends on T009, T016, T022)
-- [x] T024 [US2] Implement DubbingForm component in `src/features/dubbing-create/ui/DubbingForm.tsx` — textarea + VoiceSelector + 언어 드롭다운(ko/en) + 글자 수 카운터 + 제출 버튼 + 에러 메시지 표시 + 로딩 상태, function declaration (depends on T017, T023)
+- [x] T010 [US2] Implement `src/app/api/stt/route.ts` — `POST`: `request.formData()` → get `file` → construct new FormData with `file` and `model_id: "scribe_v1"` → native `fetch` to ElevenLabs `POST /v1/speech-to-text` with `xi-api-key` header → parse response, map `language_code`→`languageCode`, check empty text; handle all error cases per contracts/POST-stt.md (GREEN for T008)
+- [x] T011 [US2] Implement `src/entities/dubbing/api/transcribeFile.ts` — `ky.post('/api/stt', { body: formData })` → parse JSON → return `TranscriptionResult`; throw on non-2xx (GREEN for T009)
 
-**Checkpoint**: DubbingForm → 텍스트 입력 + 음성/언어 선택 + 제출 → 오디오 URL 생성. 유효성 에러 표시. T018~T021 테스트 GREEN 확인.
+**Checkpoint**: POST `/api/stt` handles all error scenarios — STT layer independently testable
 
 ---
 
-## Phase 6: User Story 4 — 생성된 오디오 재생 및 다운로드 (Priority: P2)
+## Phase 5: User Story 3 — 텍스트 번역 (Priority: P1)
 
-**Goal**: 사용자가 생성된 오디오를 브라우저에서 재생(재생/일시정지/탐색)하거나 파일로 다운로드할 수 있다.
+**Goal**: 전사 텍스트를 `/api/translate`를 통해 Google Gemini로 타겟 언어로 번역한다. 동일 언어 요청은 Gemini 호출 없이 `wasSkipped: true`로 반환한다.
 
-**Independent Test**: 오디오 생성 후 플레이어에서 재생/일시정지/탐색 가능, 다운로드 버튼으로 mp3 파일 저장 가능.
+**Independent Test**: POST `{ text: "Hello", sourceLanguage: "en", targetLanguage: "ko" }` to `/api/translate` → `{ translatedText: "...", wasSkipped: false }`. 동일 언어(en→en) → `{ translatedText: original, wasSkipped: true }`. 필드 누락 → 400.
 
-### Tests for User Story 4
+### Tests for User Story 3 (TDD — write FIRST, must FAIL before implementation)
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+- [x] T012 [P] Write RED test `src/__tests__/app/api/translate.route.test.ts` — cases: missing required fields → 400, same language (en→en) → 200 `{ translatedText: original, wasSkipped: true }`, valid request → 200 `{ translatedText, wasSkipped: false }`, `GEMINI_API_KEY` unset → 500, Gemini SDK error → 502
+- [x] T013 [P] Write RED test `src/__tests__/entities/dubbing/api/translateText.test.ts` — cases: success → returns `{ translatedText, wasSkipped }`, error response → throws
 
-- [x] T025 [P] [US4] Write AudioPlayer component test in `src/__tests__/features/dubbing-create/ui/AudioPlayer.test.tsx` — 재생 버튼 렌더링, 재생 클릭 시 오디오 재생, 다운로드 버튼 렌더링
+### Implementation for User Story 3
+
+- [x] T014 [US3] Implement `src/app/api/translate/route.ts` — `POST`: parse JSON body with zod schema (`text` min 1, `sourceLanguage` enum `['ko','en','auto']`, `targetLanguage` enum `['ko','en']`); if `sourceLanguage === targetLanguage` return `{ translatedText: text, wasSkipped: true }`; otherwise call `@google/genai` SDK (`GoogleGenAI`) with model `gemini-3.1-flash-lite-preview` and prompt from contracts/POST-translate.md; handle 400/500/502 per contract (GREEN for T012)
+- [x] T015 [US3] Implement `src/entities/dubbing/api/translateText.ts` — `ky.post('/api/translate', { json: { text, sourceLanguage, targetLanguage } })` → parse JSON → return `{ translatedText, wasSkipped }`; throw on non-2xx (GREEN for T013)
+
+**Checkpoint**: Translation layer independently testable — same-language skip and Gemini errors handled correctly
+
+---
+
+## Phase 6: User Story 4 — 음성 합성(TTS) 파이프라인 (Priority: P1)
+
+**Goal**: `useDubbingCreate` 훅이 STT → 번역 → TTS를 순서대로 실행하며 `pipelineStatus`를 `transcribing → translating → synthesizing → complete`로 업데이트한다. 각 단계 실패 시 `pipelineStatus: 'error'`로 전환하고 `retry()` 제공한다.
+
+**Independent Test**: 유효 파일+음성+언어 제출 → 훅이 모든 파이프라인 상태를 순서대로 통과 → `audioUrl` 설정 + `pipelineStatus === 'complete'`. STT 실패 → `pipelineStatus === 'error'` + `errorMessage`. `retry()` 동일 입력으로 재시작. 파이프라인 진행 중 중복 제출 차단.
+
+### Tests for User Story 4 (TDD — write FIRST, must FAIL before implementation)
+
+- [x] T016 Write RED test `src/__tests__/features/dubbing-create/model/useDubbingCreate.test.tsx` — full rewrite: initial state `{ file: null, pipelineStatus: 'idle', audioUrl: null }`, no file → `validationErrors.file` no API call, no voiceId → `validationErrors.voiceId`, valid submit → status sequence `transcribing → translating → synthesizing → complete`, STT failure → `pipelineStatus: 'error'` + `errorMessage`, translate failure → error, TTS failure → error, in-progress submit blocked, `retry()` restarts with same inputs, **STT returns unsupported languageCode (e.g. 'fr') → `translateText` called with `sourceLanguage: 'auto'`**
 
 ### Implementation for User Story 4
 
-- [x] T026 [US4] Implement AudioPlayer component in `src/features/dubbing-create/ui/AudioPlayer.tsx` — HTML5 `<audio>` + `useRef`, 재생/일시정지 토글, 진행 바 (currentTime/duration), 다운로드 버튼 (`<a href={audioUrl} download="dubbing.mp3">`), function declaration (depends on T023 audioUrl output)
+- [x] T017 [US4] Replace `src/features/dubbing-create/model/useDubbingCreate.ts` — pipeline state machine: validate via `validateFileInput` → `setPipelineStatus('transcribing')` → `transcribeFile(file)` → **normalize `sourceLanguage`: `(['ko','en'] as string[]).includes(transcription.languageCode) ? transcription.languageCode : 'auto'`** → `setPipelineStatus('translating')` → `translateText({ text, sourceLanguage: normalizedSourceLanguage, targetLanguage })` → `setPipelineStatus('synthesizing')` → `createDubbing({ text: translatedText, voiceId, language })` → `setPipelineStatus('complete')` + `setAudioUrl`; catch → `setPipelineStatus('error')` + `setErrorMessage`; expose `submit()`, `retry()`, `setFile`, `setTargetLanguage`, `setVoiceId`, `transcription`, `translation`, `audioUrl`, `pipelineStatus`, `errorMessage`, `validationErrors`, `voices`, `voicesError` per `UseDubbingCreateReturn` interface in plan.md (GREEN for T016)
+- [x] T018 [US4] Create `src/features/dubbing-create/ui/PipelineProgress.tsx` — 4-step progress indicator (STT / 번역 / TTS / 완료); each step shows active/done/idle state using `pipelineStatus` and `PIPELINE_STATUS_MESSAGES`; show `errorMessage` and retry button when `pipelineStatus === 'error'`; use function declaration
+- [x] T019 [US4] Update `src/features/dubbing-create/ui/DubbingDashboardPage.tsx` — assemble DubbingForm (file input) + VoiceSelector + PipelineProgress + AudioPlayer; wire all hook state/handlers; disable form inputs when `pipelineStatus !== 'idle'`
 
-**Checkpoint**: AudioPlayer → 재생/일시정지/탐색/다운로드 기능 동작. T025 테스트 GREEN 확인.
+**Checkpoint**: Full end-to-end pipeline functional — all 4 pipeline stages testable as a unit
 
 ---
 
-## Phase 7: Assembly & Integration
+## Phase 7: User Story 5 — 더빙된 결과물 재생 및 다운로드 (Priority: P2)
 
-**Purpose**: 페이지 조립 및 라우팅 연결
+**Goal**: 파이프라인 완료 후 사용자가 더빙 오디오를 브라우저에서 재생(재생/일시정지/탐색)하고 파일로 다운로드할 수 있다.
 
-- [x] T027 Implement DubbingDashboardPage in `src/features/dubbing-create/ui/DubbingDashboardPage.tsx` — DubbingForm + AudioPlayer 조합, useDubbingCreate 훅으로 상태 공유, function declaration (depends on T024, T026)
-- [x] T028 Create dashboard route page in `src/app/dashboard/page.tsx` — thin page: `<DubbingDashboardPage />` 렌더링 (depends on T027)
+**Independent Test**: `audioUrl` (Blob URL) 설정 후 AudioPlayer 렌더링 → play/pause 동작, 다운로드 버튼 `<a download="dubbing.mp3">` 존재.
 
-**Checkpoint**: `/dashboard` 접속 → 텍스트 입력 → 음성 선택 → 더빙 생성 → 오디오 재생/다운로드 전체 플로우 동작.
+### Implementation for User Story 5
+
+- [x] T020 [US5] Verify `src/features/dubbing-create/ui/AudioPlayer.tsx` — confirm `<audio>` element uses `audioUrl` prop, play/pause/seek controls present, `<a href={audioUrl} download="dubbing.mp3">` download button exists; update if any of these are missing
+
+**Checkpoint**: Playback and download independently functional with Blob URL
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-**Purpose**: 전체 플로우 점검, 에러 처리 강화, 코드 정리
+**Purpose**: 전체 플로우 검증, 환경변수 경로 점검
 
-- [x] T029 [P] Verify all tests pass: `npm test` — 전체 테스트 GREEN 확인
-- [x] T030 [P] Verify lint passes: `npm run lint` — 코드 스타일 확인
-- [x] T031 Review FSD layer dependencies — `app → features → entities → shared` 단방향 의존성 준수 확인, 배럴 export 없음 확인
-- [ ] T032 End-to-end manual test with real ElevenLabs API key — `.env.local`에 실제 키 설정 후 `/dashboard`에서 전체 플로우 동작 확인
+- [x] T021 [P] Run `npm test` — confirm all new tests pass (T005–T016); fix any failures
+- [x] T022 [P] Run `npm run lint` — fix lint errors across all new/modified files
+- [ ] T023 Verify API key error paths: unset `ELEVENLABS_API_KEY` → `/api/stt` returns 500; unset `GEMINI_API_KEY` → `/api/translate` returns 500
+- [ ] T024 Verify same-language optimization: English audio + English target language → `wasSkipped: true` in hook `translation` state, TTS called with original transcription text
+- [ ] T025 Verify duplicate-submit guard: while `pipelineStatus !== 'idle'`, form inputs are disabled and calling `submit()` is a no-op
+- [x] T026 Add `GEMINI_API_KEY=your_api_key_here` to `.env.example` if not already present
 
 ---
 
@@ -168,119 +163,100 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies — can start immediately
-- **Foundational (Phase 2)**: Depends on Phase 1 (ky, zod 설치) — BLOCKS all user stories
-- **US1 (Phase 3)**: Depends on Phase 2 (DTOs, env.ts)
-- **US3 (Phase 4)**: Depends on Phase 3 (GET /api/voices route)
-- **US2 (Phase 5)**: Depends on Phase 3 (POST /api/tts route) + Phase 4 (VoiceSelector)
-- **US4 (Phase 6)**: Depends on Phase 5 (useDubbingCreate hook의 audioUrl)
-- **Assembly (Phase 7)**: Depends on Phase 5 + Phase 6
-- **Polish (Phase 8)**: Depends on Phase 7
-
-### User Story Dependencies
-
-```
-Phase 1 (Setup)
+```text
+Phase 1 (Setup: npm install @google/generative-ai)
     ↓
-Phase 2 (Foundational: DTOs + env + validation)
-    ↓
-Phase 3 (US1: API Key + Route Handlers)
-    ↓
-Phase 4 (US3: Voice List + VoiceSelector)
-    ↓
-Phase 5 (US2: TTS Conversion + DubbingForm)
-    ↓
-Phase 6 (US4: Audio Player)
-    ↓
-Phase 7 (Assembly: Dashboard Page)
-    ↓
-Phase 8 (Polish)
+Phase 2 (Foundational: DTOs + getGeminiApiKey) ← BLOCKS ALL
+    ↓                   ↓                   ↓
+Phase 3 (US1)      Phase 4 (US2)       Phase 5 (US3)
+    ↓                   ↓                   ↓
+    └───────────────────┴───────────────────┘
+                        ↓
+            Phase 6 (US4: pipeline hook + PipelineProgress)
+                        ↓
+            Phase 7 (US5: AudioPlayer verify)
+                        ↓
+            Phase 8 (Polish)
 ```
 
-### Within Each User Story
+### Key Sequential Dependencies
 
-- Tests MUST be written and FAIL before implementation (TDD Red-Green-Refactor)
-- DTOs before API functions
-- API functions before hooks
-- Hooks before UI components
-- Core implementation before integration
+- T002 (DTO update) must complete before T005, T008, T012, T016 (all need new types)
+- T003/T004 (env test/impl) can parallelize with T002 if env.ts is edited separately
+- T005 (validateFileInput test) → T006 (validateFileInput impl)
+- T008 (stt route test) → T010 (stt route impl)
+- T009 (transcribeFile test) → T011 (transcribeFile impl)
+- T012 (translate route test) → T014 (translate route impl)
+- T013 (translateText test) → T015 (translateText impl)
+- T016 (hook test) → T017 (hook impl); T017 depends on T006, T011, T015
+- T018, T019 can parallelize after T017
 
-### Parallel Opportunities
+### Parallel Opportunities Within Phases
 
-**Phase 2 내부**:
-- T004, T005 (테스트 작성) — 병렬 가능
-- T006, T007, T008 (DTOs + env) — 병렬 가능
-
-**Phase 3 내부**:
-- T010, T011 (테스트 작성) — 병렬 가능
-
-**Phase 4 내부**:
-- T014, T015 (테스트 작성) — 병렬 가능
-
-**Phase 5 내부**:
-- T018, T019, T020, T021 (테스트 작성) — 병렬 가능
-
-**Phase 8 내부**:
-- T029, T030 — 병렬 가능
+| Phase | Parallel Group |
+| ----- | -------------- |
+| Phase 2 | T003 + T004 after T002 |
+| Phases 3, 4, 5 | All three phases after Phase 2 |
+| Phase 4 internal | T008 + T009 (tests); T010 + T011 (impl) |
+| Phase 5 internal | T012 + T013 (tests); T014 + T015 (impl) |
+| Phase 8 | T021 + T022 |
 
 ---
 
-## Parallel Example: Phase 2 (Foundational)
+## Parallel Example: Phases 4 & 5
 
 ```bash
-# Launch tests in parallel:
-Task: "Write env config test in src/__tests__/shared/config/env.test.ts"
-Task: "Write validation test in src/__tests__/features/dubbing-create/lib/validateDubbingInput.test.ts"
+# Phases 4 and 5 have zero cross-file dependency — run in parallel:
 
-# Launch DTOs + env in parallel (after tests written):
-Task: "Create Voice entity DTOs in src/entities/voice/dto/voice.dto.ts"
-Task: "Create Dubbing entity DTOs in src/entities/dubbing/dto/dubbing.dto.ts"
-Task: "Implement env config module in src/shared/config/env.ts"
-```
+# Agent A: US2 (STT)
+Task: "Write stt.route.test.ts (RED) — T008"
+Task: "Write transcribeFile.test.ts (RED) — T009"
+Task: "Implement src/app/api/stt/route.ts (GREEN) — T010"
+Task: "Implement src/entities/dubbing/api/transcribeFile.ts (GREEN) — T011"
 
-## Parallel Example: Phase 5 (User Story 2)
-
-```bash
-# Launch all tests in parallel:
-Task: "Write POST /api/tts route test (success cases) in src/__tests__/app/api/tts.route.test.ts"
-Task: "Write createDubbing entity API test in src/__tests__/entities/dubbing/api/createDubbing.test.ts"
-Task: "Write useDubbingCreate hook test in src/__tests__/features/dubbing-create/model/useDubbingCreate.test.tsx"
-Task: "Write DubbingForm component test in src/__tests__/features/dubbing-create/ui/DubbingForm.test.tsx"
+# Agent B: US3 (Translation)
+Task: "Write translate.route.test.ts (RED) — T012"
+Task: "Write translateText.test.ts (RED) — T013"
+Task: "Implement src/app/api/translate/route.ts (GREEN) — T014"
+Task: "Implement src/entities/dubbing/api/translateText.ts (GREEN) — T015"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 + 3 + 2)
+### MVP First (User Stories 1–4, P1 only)
 
-1. Complete Phase 1: Setup (install ky, zod)
-2. Complete Phase 2: Foundational (DTOs, env, validation)
-3. Complete Phase 3: US1 — API Key + Route Handlers
-4. Complete Phase 4: US3 — Voice List
-5. Complete Phase 5: US2 — TTS Conversion
-6. **STOP and VALIDATE**: 텍스트 입력 → 음성 선택 → 더빙 생성 전체 플로우 테스트
-7. Deploy/demo if ready (오디오 재생은 브라우저 기본 기능으로 가능)
+1. Complete Phase 1: `npm install @google/generative-ai`
+2. Complete Phase 2: DTOs + `getGeminiApiKey()` — **blocks everything**
+3. Run Phases 3, 4, 5 in parallel: US1 (validation) + US2 (STT) + US3 (Translation)
+4. Complete Phase 6: US4 (pipeline hook + progress UI)
+5. **STOP and VALIDATE**: `npm test` → all green; manual test with real API keys
+6. Demo/deploy if ready
 
 ### Incremental Delivery
 
-1. Setup + Foundational → Foundation ready
-2. US1 (API Key + Routes) → 서버 API 동작 확인 (curl 테스트 가능)
-3. US3 (Voice List) → 음성 선택 UI 동작 확인
-4. US2 (TTS Conversion) → 핵심 기능 완성 (텍스트→오디오)
-5. US4 (Audio Player) → 재생/다운로드 UX 완성
-6. Assembly → 전체 페이지 통합
-7. Polish → 최종 점검
+1. Setup + Foundational → types and config ready
+2. US1 alone → file validation testable without any server calls
+3. US2 + US3 (parallel) → server-side pipeline stages independently testable via curl
+4. US4 → full pipeline working end-to-end in browser
+5. US5 → audio playback and download confirmed working
+6. Polish → all tests green, lint clean
 
-### Total Tasks: 32
+---
 
-| Phase | Task Count | Parallel Opportunities |
-|-------|-----------|----------------------|
-| Phase 1: Setup | 3 | 2 tasks parallel |
-| Phase 2: Foundational | 6 | 5 tasks parallel (2 tests + 3 impl) |
-| Phase 3: US1 | 4 | 2 tests parallel |
-| Phase 4: US3 | 4 | 2 tests parallel |
-| Phase 5: US2 | 7 | 4 tests parallel |
-| Phase 6: US4 | 2 | 1 test |
-| Phase 7: Assembly | 2 | sequential |
-| Phase 8: Polish | 4 | 2 tasks parallel |
+## Summary
+
+| Phase | Tasks | Parallel? |
+| ----- | ----- | --------- |
+| Phase 1: Setup | 1 | — |
+| Phase 2: Foundational | 3 | T003+T004 parallel |
+| Phase 3: US1 (파일 업로드/검증) | 4 | — |
+| Phase 4: US2 (STT) | 4 | T008+T009 / T010+T011 parallel |
+| Phase 5: US3 (번역) | 4 | T012+T013 / T014+T015 parallel |
+| Phase 6: US4 (파이프라인 훅+UI) | 4 | T018+T019 after T017 |
+| Phase 7: US5 (재생/다운로드) | 1 | — |
+| Phase 8: Polish | 6 | T021+T022 parallel |
+| **Total** | **27** | |
+
+**Suggested MVP scope**: Phases 1–6 (US1–US4, all P1 stories)

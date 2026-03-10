@@ -1,7 +1,7 @@
-# Data Model: AI 더빙 코어 기능
+# Data Model: AI 더빙 코어 기능 (파일 업로드 → STT → 번역 → TTS)
 
-**Phase**: 1 — Design
-**Date**: 2026-03-09
+**Phase**: 1 — Design (Updated for full pipeline)
+**Date**: 2026-03-10
 
 ---
 
@@ -9,20 +9,20 @@
 
 ### 1. Voice (음성 프로필)
 
-**Source**: ElevenLabs 프리메이드 음성 5개를 정적 구성
-**Location**: `src/entities/voice/dto/voice.dto.ts`
+**Source**: ElevenLabs 프리메이드 음성 6개를 정적 구성
+**Location**: `src/entities/voice/dto/voice.dto.ts` _(기존, 변경 없음)_
 
 ```typescript
 export type VoiceGender = 'male' | 'female';
 export type VoiceAgeGroup = 'young' | 'middle';
 
 export interface Voice {
-  id: string;           // ElevenLabs voice_id (e.g., "21m00Tcm4TlvDq8ikWAM")
-  name: string;         // 표시 이름 (e.g., "Rachel")
-  gender: VoiceGender;  // 성별 분류
-  ageGroup: VoiceAgeGroup; // 나이대 분류
-  previewUrl: string;   // 미리듣기 오디오 URL (ElevenLabs CDN)
-  description: string;  // 한국어 설명 (e.g., "젊은 여성, 차분하고 명확한 발음")
+  id: string;              // ElevenLabs voice_id
+  name: string;            // 표시 이름
+  gender: VoiceGender;
+  ageGroup: VoiceAgeGroup;
+  previewUrl: string;      // 미리듣기 URL
+  description: string;     // 한국어 설명
 }
 
 export interface VoiceListResponse {
@@ -30,155 +30,229 @@ export interface VoiceListResponse {
 }
 ```
 
-**정적 데이터 (VOICES 상수)**:
-```typescript
-// src/app/api/voices/route.ts 내부 또는 별도 상수 파일
-export const PREMADE_VOICES: Voice[] = [
-  {
-    id: '21m00Tcm4TlvDq8ikWAM',
-    name: 'Rachel',
-    gender: 'female',
-    ageGroup: 'young',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/21m00Tcm4TlvDq8ikWAM/21m00Tcm4TlvDq8ikWAM.mp3',
-    description: '젊은 여성 · 차분하고 명확한 발음',
-  },
-  {
-    id: 'TxGEqnHWrfWFTfGW9XjX',
-    name: 'Josh',
-    gender: 'male',
-    ageGroup: 'young',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/TxGEqnHWrfWFTfGW9XjX/TxGEqnHWrfWFTfGW9XjX.mp3',
-    description: '젊은 남성 · 자연스럽고 친근한 목소리',
-  },
-  {
-    id: 'pNInz6obpgDQGcFmaJgB',
-    name: 'Adam',
-    gender: 'male',
-    ageGroup: 'middle',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/pNInz6obpgDQGcFmaJgB/pNInz6obpgDQGcFmaJgB.mp3',
-    description: '중년 남성 · 깊고 안정적인 목소리',
-  },
-  {
-    id: 'EXAVITQu4vr4xnSDxMaL',
-    name: 'Bella',
-    gender: 'female',
-    ageGroup: 'young',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/EXAVITQu4vr4xnSDxMaL/EXAVITQu4vr4xnSDxMaL.mp3',
-    description: '젊은 여성 · 활기차고 에너지 넘치는 목소리',
-  },
-  {
-    id: 'MF3mGyEYCl7XYWbV9V6O',
-    name: 'Elli',
-    gender: 'female',
-    ageGroup: 'young',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/MF3mGyEYCl7XYWbV9V6O/MF3mGyEYCl7XYWbV9V6O.mp3',
-    description: '젊은 여성 · 따뜻하고 감성적인 목소리',
-  },
-  {
-    id: 'ThT5KcBeYPX3keUQqHPh',
-    name: 'Dorothy',
-    gender: 'female',
-    ageGroup: 'middle',
-    previewUrl: 'https://storage.googleapis.com/eleven-public-prod/voices/ThT5KcBeYPX3keUQqHPh/ThT5KcBeYPX3keUQqHPh.mp3',
-    description: '중년 여성 · 차분하고 신뢰감 있는 목소리',
-  },
-];
-```
-
 ---
 
-### 2. DubbingRequest (TTS 변환 요청)
+### 2. DubbingLanguage (지원 언어)
 
-**Source**: 클라이언트 폼 입력
 **Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
 
 ```typescript
 export type DubbingLanguage = 'ko' | 'en';
+```
 
-export interface DubbingRequest {
-  text: string;              // 변환할 텍스트 (1~5000자)
-  voiceId: string;           // 선택된 Voice.id
-  language: DubbingLanguage; // 언어 선택 ('ko' | 'en')
+---
+
+### 3. FileUploadInput (파일 업로드 입력)
+
+**Source**: 사용자 파일 선택
+**Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
+
+```typescript
+// 지원 오디오/비디오 확장자
+export const SUPPORTED_EXTENSIONS = [
+  '.mp3', '.wav', '.ogg', '.flac', '.m4a',
+  '.mp4', '.mov', '.webm',
+] as const;
+
+// 지원 MIME 타입
+export const SUPPORTED_MIME_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/flac',
+  'audio/mp4',
+  'audio/x-m4a',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+] as const;
+
+export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+
+export interface FileValidationErrors {
+  file?: string;      // "파일을 업로드해주세요" | "지원하지 않는 파일 형식입니다" | "파일 크기가 25MB를 초과합니다"
+  voiceId?: string;   // "음성을 선택해주세요"
+  language?: string;  // "타겟 언어를 선택해주세요"
 }
 
-export interface DubbingResponse {
-  audioUrl: string;          // Blob URL (URL.createObjectURL 결과)
+export interface FileValidationResult {
+  isValid: boolean;
+  errors: FileValidationErrors;
+}
+```
+
+---
+
+### 4. TranscriptionResult (STT 결과)
+
+**Source**: ElevenLabs STT API 응답
+**Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
+
+```typescript
+export interface TranscriptionResult {
+  text: string;           // 전사된 텍스트
+  languageCode: string;   // 감지된 언어 코드 (e.g., "en", "ko")
+  languageProbability: number; // 언어 감지 신뢰도 (0~1)
+}
+```
+
+**서버 측 응답 (ElevenLabs 원본)**:
+
+```json
+{
+  "text": "transcribed text",
+  "language_code": "en",
+  "language_probability": 0.99,
+  "words": [...]
+}
+```
+
+---
+
+### 5. TranslationResult (번역 결과)
+
+**Source**: Google Gemini API 응답
+**Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
+
+```typescript
+// sourceLanguage: ElevenLabs STT가 반환하는 언어 코드는 임의의 문자열(e.g., 'fr', 'ja')일 수 있다.
+// 'ko' | 'en'이 아닌 경우 Route Handler 내에서 'auto'로 정규화하여 Gemini에게 자동 감지를 위임한다.
+export type TranslationSourceLanguage = DubbingLanguage | 'auto';
+
+export interface TranslationResult {
+  translatedText: string;             // 번역된 텍스트
+  sourceLanguage: TranslationSourceLanguage; // 원본 언어 ('ko' | 'en' | 'auto')
+  targetLanguage: DubbingLanguage;    // 타겟 언어
+  wasSkipped: boolean;                // true if source == target (번역 건너뜀)
+}
+```
+
+---
+
+### 6. DubbingPipelineStatus (파이프라인 상태)
+
+**Source**: 파이프라인 진행 상태 추적
+**Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
+
+```typescript
+export type DubbingPipelineStatus =
+  | 'idle'          // 초기 상태, 사용자 입력 대기
+  | 'transcribing'  // STT 처리 중 ("음성을 텍스트로 변환 중...")
+  | 'translating'   // 번역 처리 중 ("텍스트를 번역 중...")
+  | 'synthesizing'  // TTS 처리 중 ("음성을 합성 중...")
+  | 'complete'      // 완료, 오디오 재생 가능
+  | 'error';        // 오류 발생, 재시도 가능
+
+// 각 단계의 진행 상태 메시지
+export const PIPELINE_STATUS_MESSAGES: Record<DubbingPipelineStatus, string> = {
+  idle: '',
+  transcribing: '음성을 텍스트로 변환 중...',
+  translating: '텍스트를 번역 중...',
+  synthesizing: '음성을 합성 중...',
+  complete: '더빙 완료',
+  error: '오류가 발생했습니다',
+};
+```
+
+---
+
+### 7. AudioResult (TTS 합성 결과)
+
+**Source**: `/api/tts` Route Handler → Blob URL
+**Location**: `src/entities/dubbing/dto/dubbing.dto.ts`
+
+```typescript
+export interface AudioResult {
+  audioUrl: string;  // Blob URL (URL.createObjectURL 결과)
   format: 'mp3';
 }
-
-export type DubbingStatus = 'idle' | 'loading' | 'success' | 'error';
 ```
 
-**서버 측 zod 스키마** (`app/api/tts/route.ts` 내부):
-```typescript
-import { z } from 'zod';
+---
 
+### 8. API Route 요청/응답 타입
+
+**Location**: 각 Route Handler 파일 내부 (zod 스키마)
+
+```typescript
+// POST /api/stt (multipart/form-data, zod 검증은 파일 존재 여부만)
+// Request: FormData { file: File }
+// Response: { text: string, languageCode: string, languageProbability: number }
+// 주의: languageCode는 ElevenLabs가 감지한 임의 언어 코드(string)임.
+//       클라이언트 훅에서 'ko'/'en' 이외의 값은 'auto'로 정규화하여 /api/translate로 전달한다.
+
+// POST /api/translate
+const translateRequestSchema = z.object({
+  text: z.string().min(1),
+  sourceLanguage: z.enum(['ko', 'en', 'auto']), // 'auto' = STT 감지 언어가 ko/en 이외일 때
+  targetLanguage: z.enum(['ko', 'en']),
+});
+// Response: { translatedText: string, sourceLanguage: 'ko' | 'en' | 'auto', wasSkipped: boolean }
+
+// POST /api/tts (기존, 변경 없음)
 const ttsRequestSchema = z.object({
-  text: z.string().min(1, '텍스트를 입력해주세요').max(5000, '텍스트는 5,000자를 초과할 수 없습니다'),
-  voiceId: z.string().min(1, '음성을 선택해주세요'),
+  text: z.string().min(1).max(5000),
+  voiceId: z.string().min(1),
   language: z.enum(['ko', 'en']),
 });
-
-export type TtsRequest = z.infer<typeof ttsRequestSchema>;
+// Response: audio/mpeg binary
 ```
 
 ---
 
-### 3. ValidationError (유효성 검증 오류)
-
-**Source**: `features/dubbing-create/lib/validateDubbingInput.ts`
-**Location**: `src/entities/dubbing/dto/dubbing.dto.ts` (공유 타입) 또는 feature 내부
-
-```typescript
-export interface ValidationResult {
-  isValid: boolean;
-  errors: {
-    text?: string;
-    voiceId?: string;
-    language?: string;
-  };
-}
-```
-
----
-
-## State Shape (useDubbingCreate 훅 내부)
+## State Shape (useDubbingCreate 훅 내부 — 업데이트)
 
 ```typescript
 interface DubbingCreateState {
-  text: string;              // 입력 텍스트
-  voiceId: string;           // 선택된 voiceId ('': 미선택)
-  language: DubbingLanguage; // 선택된 언어 (기본: 'ko')
-  isLoading: boolean;        // API 요청 진행 중
-  audioUrl: string | null;   // 생성된 오디오 Blob URL
-  errorMessage: string | null; // API 에러 메시지
-  validationErrors: {        // 클라이언트 유효성 에러
-    text?: string;
-    voiceId?: string;
-  };
+  // 입력 필드
+  file: File | null;                        // 업로드된 파일 (null = 미선택)
+  targetLanguage: DubbingLanguage;          // 타겟 언어 (기본: 'ko')
+  voiceId: string;                          // 선택된 음성 ID
+
+  // 파이프라인 상태
+  pipelineStatus: DubbingPipelineStatus;    // 현재 단계
+
+  // 파이프라인 결과 (단계별 누적)
+  transcription: TranscriptionResult | null;  // STT 결과
+  translation: TranslationResult | null;      // 번역 결과
+  audioUrl: string | null;                    // 최종 오디오 URL
+
+  // 에러/검증
+  errorMessage: string | null;              // 파이프라인 에러 메시지
+  validationErrors: FileValidationErrors;   // 클라이언트 유효성 에러
+
+  // 음성 목록
+  voices: Voice[];
+  voicesError: string | null;
 }
 ```
 
 ---
 
-## 의존성 그래프
+## 의존성 그래프 (Updated)
 
-```
-shared/config/env.ts
+```text
+shared/config/env.ts (getElevenLabsApiKey, getGeminiApiKey)
     ↑
-app/api/voices/route.ts ─── (PREMADE_VOICES 상수)
-app/api/tts/route.ts ─────── ElevenLabs API (외부)
-    ↑                              ↑
-entities/voice/api/getVoices.ts    │
-entities/dubbing/api/createDubbing.ts (ky)
+app/api/stt/route.ts ──────── ElevenLabs STT API (외부)
+app/api/translate/route.ts ── Gemini API (외부)
+app/api/tts/route.ts ──────── ElevenLabs TTS API (외부)
+app/api/voices/route.ts ───── PREMADE_VOICES (정적)
     ↑
-features/dubbing-create/lib/validateDubbingInput.ts
-features/dubbing-create/model/useDubbingCreate.ts
+entities/dubbing/api/transcribeFile.ts  (ky → /api/stt)
+entities/dubbing/api/translateText.ts   (ky → /api/translate)
+entities/dubbing/api/createDubbing.ts   (ky → /api/tts)  [기존]
+entities/voice/api/getVoices.ts         (ky → /api/voices) [기존]
+    ↑
+features/dubbing-create/lib/validateFileInput.ts   (순수 함수)
+features/dubbing-create/lib/validateDubbingInput.ts [기존, 미사용 예정]
+features/dubbing-create/model/useDubbingCreate.ts  (파이프라인 오케스트레이터)
     ↑
 features/dubbing-create/ui/DubbingDashboardPage.tsx
-features/dubbing-create/ui/DubbingForm.tsx
-features/dubbing-create/ui/VoiceSelector.tsx
-features/dubbing-create/ui/AudioPlayer.tsx
+features/dubbing-create/ui/DubbingForm.tsx          (파일 업로드 UI)
+features/dubbing-create/ui/PipelineProgress.tsx     (진행 상태 표시)
+features/dubbing-create/ui/VoiceSelector.tsx        [기존]
+features/dubbing-create/ui/AudioPlayer.tsx          [기존]
     ↑
 app/dashboard/page.tsx
 ```
