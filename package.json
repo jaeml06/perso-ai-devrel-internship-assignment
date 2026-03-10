@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
+    "@libsql/client": "^0.17.0",
     "clsx": "^2.1.1",
     "ky": "^1.14.3",
     "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.30",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.5.0",
