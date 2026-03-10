@@ -34,6 +34,9 @@ export function DubbingForm({
   disabled,
   onSubmit,
 }: DubbingFormProps) {
+  const isInputDisabled = disabled === true;
+  const isSubmitDisabled = isInputDisabled || !file || !voiceId || !targetLanguage;
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
     onFileChange(selected);
@@ -55,7 +58,7 @@ export function DubbingForm({
           accept=".mp3,.wav,.ogg,.flac,.m4a,.mp4,.mov,.webm"
           className='rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
           onChange={handleFileChange}
-          disabled={disabled}
+          disabled={isInputDisabled}
         />
         {file && <span className='truncate max-w-[200px] text-sm text-muted-foreground'>{file.name}</span>}
         {validationErrors.file && (
@@ -71,7 +74,7 @@ export function DubbingForm({
           className='rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
           value={targetLanguage}
           onChange={(e) => onTargetLanguageChange(e.target.value as DubbingLanguage)}
-          disabled={disabled}
+          disabled={isInputDisabled}
         >
           <option value="ko">한국어</option>
           <option value="en">English</option>
@@ -97,7 +100,7 @@ export function DubbingForm({
       <button
         type="submit"
         className='bg-primary text-primary-foreground rounded-lg px-4 py-2 font-medium hover:bg-primary/90 transition-colors duration-150 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring'
-        disabled={disabled || (!file || !voiceId || !targetLanguage)}
+        disabled={isSubmitDisabled}
       >
         더빙 생성
       </button>

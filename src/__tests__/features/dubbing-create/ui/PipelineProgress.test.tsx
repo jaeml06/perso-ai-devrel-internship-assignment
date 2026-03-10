@@ -38,6 +38,22 @@ describe('PipelineProgress', () => {
     });
   });
 
+  it('새 attempt가 시작되면 이전 완료 상태 대신 현재 진행 단계만 표시한다', () => {
+    const { rerender } = render(
+      <PipelineProgress pipelineStatus="complete" errorMessage={null} onRetry={vi.fn()} />,
+    );
+
+    rerender(
+      <PipelineProgress pipelineStatus="transcribing" errorMessage={null} onRetry={vi.fn()} />,
+    );
+
+    const sttStep = screen.getByText(/^STT$/i).closest('[data-state]');
+    const completeStep = screen.getByText(/^완료$/i).closest('[data-state]');
+
+    expect(sttStep).toHaveAttribute('data-state', 'active');
+    expect(completeStep).toHaveAttribute('data-state', 'idle');
+  });
+
   it('error 상태에서 에러 메시지와 재시도 버튼이 표시된다', () => {
     render(
       <PipelineProgress

@@ -38,6 +38,9 @@ function getStepState(
 export function PipelineProgress({ pipelineStatus, errorMessage, onRetry }: PipelineProgressProps) {
   if (pipelineStatus === 'idle') return null;
 
+  const shouldShowStatusMessage = pipelineStatus !== 'error';
+  const shouldShowRetry = pipelineStatus === 'error';
+
   return (
     <div className='rounded-2xl border border-border bg-card shadow-sm p-6 flex flex-col gap-4'>
       <ol className='flex flex-col gap-3'>
@@ -72,13 +75,13 @@ export function PipelineProgress({ pipelineStatus, errorMessage, onRetry }: Pipe
         })}
       </ol>
 
-      {pipelineStatus !== 'error' && (
+      {shouldShowStatusMessage ? (
         <p aria-live='polite' className='text-sm text-muted-foreground'>
           {PIPELINE_STATUS_MESSAGES[pipelineStatus]}
         </p>
-      )}
+      ) : null}
 
-      {pipelineStatus === 'error' && (
+      {shouldShowRetry ? (
         <div className='bg-destructive/10 border border-destructive rounded-lg p-4 flex flex-col gap-3'>
           <p className='text-sm text-destructive'>{errorMessage ?? PIPELINE_STATUS_MESSAGES.error}</p>
           <button
@@ -89,7 +92,7 @@ export function PipelineProgress({ pipelineStatus, errorMessage, onRetry }: Pipe
             다시 시도
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

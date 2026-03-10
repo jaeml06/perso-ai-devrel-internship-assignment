@@ -10,6 +10,7 @@ import {
 } from '@/entities/dubbing/dto/dubbing.dto';
 import { type Voice } from '@/entities/voice/dto/voice.dto';
 import { validateFileInput } from '@/features/dubbing-create/lib/validateFileInput';
+import { isProcessingPipelineStatus } from '@/features/dubbing-create/lib/pipelineStatus';
 import { transcribeFile } from '@/entities/dubbing/api/transcribeFile';
 import { translateText } from '@/entities/dubbing/api/translateText';
 import { createDubbing } from '@/entities/dubbing/api/createDubbing';
@@ -32,6 +33,7 @@ export function useDubbingCreate() {
   const latestFile = useRef(file);
   const latestVoiceId = useRef(voiceId);
   const latestTargetLanguage = useRef(targetLanguage);
+  const activeAudioUrl = useRef<string | null>(null);
 
   useEffect(() => { latestFile.current = file; }, [file]);
   useEffect(() => { latestVoiceId.current = voiceId; }, [voiceId]);
@@ -48,15 +50,33 @@ export function useDubbingCreate() {
   }, []);
 
   useEffect(() => {
-    getVoices()
-      .then((data) => {
+    const load = async () => {
+      try {
+        const data = await getVoices();
         setVoices(data.voices);
         setVoicesError(null);
-      })
-      .catch(() => {
+      } catch {
         setVoicesError('음성 목록을 불러오는데 실패했습니다');
-      });
+      }
+    };
+    void load();
   }, []);
+
+  const revokeAudioUrl = useCallback(() => {
+    if (!activeAudioUrl.current) return;
+    URL.revokeObjectURL(activeAudioUrl.current);
+    activeAudioUrl.current = null;
+  }, []);
+
+  const resetSessionState = useCallback(() => {
+    revokeAudioUrl();
+    setAudioUrl(null);
+    setTranscription(null);
+    setTranslation(null);
+    setErrorMessage(null);
+  }, [revokeAudioUrl]);
+
+  useEffect(() => () => revokeAudioUrl(), [revokeAudioUrl]);
 
   const runPipeline = useCallback(async (
     currentFile: File | null,
@@ -70,10 +90,7 @@ export function useDubbingCreate() {
     }
 
     setValidationErrors({});
-    setErrorMessage(null);
-    setAudioUrl(null);
-    setTranscription(null);
-    setTranslation(null);
+    resetSessionState();
 
     try {
       setPipelineStatus('transcribing');
@@ -103,22 +120,24 @@ export function useDubbingCreate() {
         voiceId: currentVoiceId,
         language: currentTargetLanguage,
       });
+      activeAudioUrl.current = url;
       setAudioUrl(url);
       setPipelineStatus('complete');
     } catch (error) {
       setPipelineStatus('error');
       setErrorMessage(error instanceof Error ? error.message : '오류가 발생했습니다');
     }
-  }, []);
+  }, [resetSessionState]);
 
   const submit = useCallback(async () => {
-    if (pipelineStatus !== 'idle' && pipelineStatus !== 'error') return;
+    if (isProcessingPipelineStatus(pipelineStatus)) return;
     await runPipeline(latestFile.current, latestVoiceId.current, latestTargetLanguage.current);
   }, [pipelineStatus, runPipeline]);
 
   const retry = useCallback(async () => {
+    if (isProcessingPipelineStatus(pipelineStatus)) return;
     await runPipeline(latestFile.current, latestVoiceId.current, latestTargetLanguage.current);
-  }, [runPipeline]);
+  }, [pipelineStatus, runPipeline]);
 
   return {
     file,

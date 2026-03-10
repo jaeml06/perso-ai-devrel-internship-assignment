@@ -1,5 +1,8 @@
 import ky from 'ky';
-import { type TranslationSourceLanguage, type DubbingLanguage } from '@/entities/dubbing/dto/dubbing.dto';
+import {
+  type TranslationSourceLanguage,
+  type DubbingLanguage,
+} from '@/entities/dubbing/dto/dubbing.dto';
 
 interface TranslateRequest {
   text: string;
@@ -12,7 +15,11 @@ interface TranslateResponse {
   wasSkipped: boolean;
 }
 
-export async function translateText(request: TranslateRequest): Promise<TranslateResponse> {
-  const result = await ky.post('/api/translate', { json: request }).json<TranslateResponse>();
+export async function translateText(
+  request: TranslateRequest,
+): Promise<TranslateResponse> {
+  const result = await ky
+    .post('/api/translate', { json: request, timeout: false })
+    .json<TranslateResponse>();
   return result;
 }

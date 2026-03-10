@@ -50,6 +50,23 @@ describe('DubbingForm', () => {
     expect(screen.getByRole('button', { name: /더빙 생성/i })).toBeDisabled();
   });
 
+  it('disabled=true일 때 파일 입력과 언어 선택도 비활성화된다', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} voiceId="voice123" disabled />);
+
+    expect(screen.getByLabelText(/오디오\/비디오 파일/i)).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /타겟 언어/i })).toBeDisabled();
+  });
+
+  it('disabled=false이면 완료 후 같은 입력으로 다시 제출할 수 있다', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} voiceId="voice123" disabled={false} />);
+
+    expect(screen.getByLabelText(/오디오\/비디오 파일/i)).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: /타겟 언어/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /더빙 생성/i })).toBeEnabled();
+  });
+
   it('에러 메시지에 aria-live="polite" 속성이 있다', () => {
     render(
       <DubbingForm
