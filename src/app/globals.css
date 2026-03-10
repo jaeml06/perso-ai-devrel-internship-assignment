@@ -16,6 +16,14 @@
   --color-destructive-foreground: #ffffff;
   --color-border: #e2e8f0;
   --color-ring: #2563eb;
+  --color-success: #22c55e;
+  --color-success-foreground: #ffffff;
+  --color-warning: #f59e0b;
+  --color-warning-foreground: #ffffff;
+  --color-info: #3b82f6;
+  --color-info-foreground: #ffffff;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
 
   /* Typography - Font Family */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -48,4 +56,18 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-full: 9999px;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.3s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
