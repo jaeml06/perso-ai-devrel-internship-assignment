@@ -44,4 +44,25 @@ describe('transcribeFile', () => {
     const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
     await expect(transcribeFile(file)).rejects.toThrow();
   });
+
+  it('같은 파일로 반복 호출해도 매번 새 STT 요청을 보낸다', async () => {
+    const ky = await import('ky');
+    vi.mocked(ky.default.post).mockReturnValue({
+      json: async () => ({
+        text: 'Hello world',
+        languageCode: 'en',
+        languageProbability: 0.99,
+      }),
+    } as never);
+
+    const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+
+    await transcribeFile(file);
+    await transcribeFile(file);
+
+    expect(ky.default.post).toHaveBeenCalledTimes(2);
+    expect(ky.default.post).toHaveBeenNthCalledWith(1, '/api/stt', expect.any(Object));
+    expect(ky.default.post).toHaveBeenNthCalledWith(2, '/api/stt', expect.any(Object));
+  });
 });
