@@ -49,4 +49,29 @@ describe('DubbingForm', () => {
 
     expect(screen.getByRole('button', { name: /더빙 생성/i })).toBeDisabled();
   });
+
+  it('에러 메시지에 aria-live="polite" 속성이 있다', () => {
+    render(
+      <DubbingForm
+        {...defaultProps}
+        validationErrors={{ file: '파일을 업로드해주세요' }}
+      />,
+    );
+    const errorMsg = screen.getByText('파일을 업로드해주세요');
+    expect(errorMsg).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('파일명이 있을 때 truncate 구조로 렌더된다', () => {
+    const file = new File(['audio'], 'very-long-filename-for-testing-truncate.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} />);
+    const filenameEl = screen.getByText(/very-long-filename/i);
+    expect(filenameEl).toHaveClass('truncate');
+  });
+
+  it('disabled 버튼은 opacity-50 클래스로 시각적으로 구분된다', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} voiceId="voice123" disabled />);
+    const btn = screen.getByRole('button', { name: /더빙 생성/i });
+    expect(btn).toHaveClass('disabled:opacity-50');
+  });
 });

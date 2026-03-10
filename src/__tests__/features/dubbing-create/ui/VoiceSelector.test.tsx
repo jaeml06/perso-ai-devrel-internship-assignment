@@ -86,4 +86,17 @@ describe('VoiceSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: /재시도/i }));
     expect(onRetry).toHaveBeenCalled();
   });
+
+  it('에러 메시지가 aria-live 접근 가능 영역에 표시된다', () => {
+    render(
+      <VoiceSelector
+        voices={[]}
+        selectedVoiceId=""
+        onChange={vi.fn()}
+        error="음성 목록을 불러오는데 실패했습니다"
+      />,
+    );
+    const errorMsg = screen.getByText(/음성 목록을 불러오는데 실패했습니다/);
+    expect(errorMsg).toHaveAttribute('aria-live', 'polite');
+  });
 });

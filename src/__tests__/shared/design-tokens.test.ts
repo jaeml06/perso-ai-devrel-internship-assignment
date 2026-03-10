@@ -38,4 +38,20 @@ describe('Design Tokens', () => {
   it('defines spacing scale tokens', () => {
     expect(cssContent).toContain('--spacing-');
   });
+
+  it('defines success, warning, info, and card color tokens', () => {
+    const requiredTokens = [
+      '--color-success',
+      '--color-success-foreground',
+      '--color-warning',
+      '--color-warning-foreground',
+      '--color-info',
+      '--color-info-foreground',
+      '--color-card',
+      '--color-card-foreground',
+    ];
+    for (const token of requiredTokens) {
+      expect(cssContent).toContain(token);
+    }
+  });
 });
