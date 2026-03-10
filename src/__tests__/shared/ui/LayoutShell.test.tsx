@@ -50,4 +50,10 @@ describe('LayoutShell', () => {
     render(await LayoutShell({ children: <div>content</div> }));
     expect(screen.getByRole('button', { name: /로그아웃/i })).toBeInTheDocument();
   });
+
+  it('최상위 컨테이너에 bg-background 클래스가 있다', async () => {
+    mockAuth.mockResolvedValue(null);
+    const { container } = render(await LayoutShell({ children: <div>content</div> }));
+    expect(container.firstChild).toHaveClass('bg-background');
+  });
 });

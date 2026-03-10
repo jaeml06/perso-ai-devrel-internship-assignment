@@ -9,8 +9,8 @@ export default async function LayoutShell({
   const session = await auth();
 
   return (
-    <div className='min-h-screen flex flex-col'>
-      <nav className='h-16 border-b border-border flex items-center justify-between px-6'>
+    <div className='min-h-screen flex flex-col bg-background'>
+      <nav className='h-16 border-b border-border flex items-center justify-between px-6 bg-background'>
         <span className='text-lg font-semibold text-foreground'>AI 더빙</span>
         {session?.user && <LogoutButton />}
       </nav>

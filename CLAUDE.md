@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2026-03-09
 
 ## Active Technologies
+- TypeScript 5.x + Next.js (App Router), React, Tailwind CSS 4 (순수 — shadcn/ui 미사용) (feat/#8-ui-ux-polish)
+- N/A (UI-only feature) (feat/#8-ui-ux-polish)
 
 - N/A (세션 내 메모리만 사용, 서버 저장 없음) (feat/#3-ai-dubbing-core)
 - TypeScript 5.x + next-auth@beta (Auth.js v5), @libsql/client (Turso) (feat/#5-auth-whitelist)
@@ -27,11 +29,11 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- feat/#8-ui-ux-polish: Added TypeScript 5.x + Next.js (App Router), React, Tailwind CSS 4 (순수 — shadcn/ui 미사용)
 
 - feat/#5-auth-whitelist: Added TypeScript 5.x + next-auth@beta (Auth.js v5), @libsql/client (Turso)
 - feat/#3-ai-dubbing-core: Added TypeScript 5.x
 
-- feat/#1-nextjs-fsd-setup: Added TypeScript 5.x
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

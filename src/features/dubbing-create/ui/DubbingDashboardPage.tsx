@@ -27,8 +27,9 @@ export function DubbingDashboardPage() {
   const isProcessing = pipelineStatus !== 'idle' && pipelineStatus !== 'complete' && pipelineStatus !== 'error';
 
   return (
-    <main>
-      <h1>AI 더빙 생성</h1>
+    <main className='flex-1 py-8 px-4'>
+      <div className='max-w-2xl mx-auto flex flex-col gap-6 motion-safe:animate-[fade-in_0.3s_ease-out_both]'>
+        <h1 className='text-2xl font-bold text-foreground'>AI 더빙 생성</h1>
 
       <DubbingForm
         file={file}
@@ -54,6 +55,7 @@ export function DubbingDashboardPage() {
       {pipelineStatus === 'complete' && audioUrl && (
         <AudioPlayer audioUrl={audioUrl} />
       )}
+      </div>
     </main>
   );
 }

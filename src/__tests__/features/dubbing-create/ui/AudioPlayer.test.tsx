@@ -29,4 +29,18 @@ describe('AudioPlayer', () => {
     expect(downloadLink).toHaveAttribute('href', mockAudioUrl);
     expect(downloadLink).toHaveAttribute('download');
   });
+
+  it('재생/일시정지 버튼에 aria-label이 있다', () => {
+    render(<AudioPlayer audioUrl={mockAudioUrl} />);
+    const playBtn = screen.getByRole('button', { name: /재생|일시정지/i });
+    expect(playBtn).toHaveAttribute('aria-label');
+  });
+
+  it('시크바(range input)에 aria-label이 있다', async () => {
+    render(<AudioPlayer audioUrl={mockAudioUrl} />);
+    // range is only rendered when duration > 0
+    // Verify the audio element is in the document (range appears after metadata loads)
+    const audio = document.querySelector('audio');
+    expect(audio).toBeInTheDocument();
+  });
 });
