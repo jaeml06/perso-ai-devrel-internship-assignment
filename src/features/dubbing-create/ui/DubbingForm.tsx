@@ -1,83 +1,95 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useDubbingCreate } from '@/features/dubbing-create/model/useDubbingCreate';
+import { type DubbingLanguage } from '@/entities/dubbing/dto/dubbing.dto';
+import { type Voice } from '@/entities/voice/dto/voice.dto';
+import { type FileValidationErrors } from '@/entities/dubbing/dto/dubbing.dto';
 import { VoiceSelector } from '@/features/dubbing-create/ui/VoiceSelector';
 
 interface DubbingFormProps {
-  onAudioReady?: (audioUrl: string) => void;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+  targetLanguage: DubbingLanguage;
+  onTargetLanguageChange: (lang: DubbingLanguage) => void;
+  voiceId: string;
+  onVoiceIdChange: (id: string) => void;
+  voices: Voice[];
+  voicesError: string | null;
+  onVoicesRetry: () => void;
+  validationErrors: FileValidationErrors;
+  disabled?: boolean;
+  onSubmit: () => void;
 }
 
-export function DubbingForm({ onAudioReady }: DubbingFormProps) {
-  const {
-    text,
-    setText,
-    voiceId,
-    setVoiceId,
-    language,
-    setLanguage,
-    isLoading,
-    audioUrl,
-    errorMessage,
-    validationErrors,
-    voices,
-    voicesError,
-    loadVoices,
-    submit,
-  } = useDubbingCreate();
-
-  useEffect(() => {
-    if (audioUrl && onAudioReady) {
-      onAudioReady(audioUrl);
-    }
-  }, [audioUrl, onAudioReady]);
+export function DubbingForm({
+  file,
+  onFileChange,
+  targetLanguage,
+  onTargetLanguageChange,
+  voiceId,
+  onVoiceIdChange,
+  voices,
+  voicesError,
+  onVoicesRetry,
+  validationErrors,
+  disabled,
+  onSubmit,
+}: DubbingFormProps) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    onFileChange(selected);
+  }
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        void submit();
+        onSubmit();
       }}
     >
       <div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="변환할 텍스트를 입력해주세요"
-          maxLength={5000}
+        <label htmlFor="file-input">오디오/비디오 파일</label>
+        <input
+          id="file-input"
+          type="file"
+          accept=".mp3,.wav,.ogg,.flac,.m4a,.mp4,.mov,.webm"
+          onChange={handleFileChange}
+          disabled={disabled}
         />
-        <span>{text.length}/5000</span>
-        {validationErrors.text && <p>{validationErrors.text}</p>}
+        {file && <span>{file.name}</span>}
+        {validationErrors.file && <p>{validationErrors.file}</p>}
+      </div>
+
+      <div>
+        <label htmlFor="language-select">타겟 언어</label>
+        <select
+          id="language-select"
+          aria-label="타겟 언어"
+          value={targetLanguage}
+          onChange={(e) => onTargetLanguageChange(e.target.value as DubbingLanguage)}
+          disabled={disabled}
+        >
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+        </select>
+        {validationErrors.language && <p>{validationErrors.language}</p>}
       </div>
 
       <div>
         <VoiceSelector
           voices={voices}
           selectedVoiceId={voiceId}
-          onChange={setVoiceId}
+          onChange={onVoiceIdChange}
           error={voicesError ?? undefined}
-          onRetry={loadVoices}
+          onRetry={onVoicesRetry}
         />
         {validationErrors.voiceId && <p>{validationErrors.voiceId}</p>}
       </div>
 
-      <div>
-        <label htmlFor="language-select">언어</label>
-        <select
-          id="language-select"
-          aria-label="언어"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as 'ko' | 'en')}
-        >
-          <option value="ko">한국어</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-
-      {errorMessage && <p>{errorMessage}</p>}
-
-      <button type="submit" disabled={isLoading}>
-        {isLoading ? '생성 중...' : '더빙 생성'}
+      <button
+        type="submit"
+        disabled={disabled || (!file || !voiceId || !targetLanguage)}
+      >
+        더빙 생성
       </button>
     </form>
   );
