@@ -31,10 +31,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- feat/#12-vercel-auto-deploy: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - feat/#10-repeat-dubbing: Added TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, CVA, clsx, tailwind-merge, ky, zod, Radix UI, vaul
 - feat/#8-ui-ux-polish: Added TypeScript 5.x + Next.js (App Router), React, Tailwind CSS 4 (순수 — shadcn/ui 미사용)
-- feat/#3-ai-dubbing-core: Added TypeScript 5.x
-- feat/#5-auth-whitelist: Added TypeScript 5.x + next-auth@beta (Auth.js v5), @libsql/client (Turso)
 
 
 <!-- MANUAL ADDITIONS START -->
