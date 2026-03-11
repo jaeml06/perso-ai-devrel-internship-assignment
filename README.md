@@ -202,84 +202,155 @@ npm run lint      # ESLint 검사
 
 ## 코딩 에이전트 활용 방법 및 노하우
 
-이 프로젝트는 **Claude Code + Speckits 워크플로우**를 활용하여 기능 명세부터 구현까지 전 과정을 코딩 에이전트와 함께 진행했습니다.
+이 프로젝트는 **Claude Code + Speckits 워크플로우**와 **TDD**를 결합하여 기능 명세부터 구현까지 전 과정을 체계적으로 진행했습니다.
 
-### Speckits 파이프라인이란?
+### 왜 스펙주도개발인가?
 
-Speckits는 Claude Code용 커스텀 커맨드 모음으로, **"생각 → 명세 → 계획 → 태스크 → 구현"** 사이클을 체계적으로 관리합니다.
+AI 코딩 에이전트를 막연하게 쓰면 이렇게 됩니다.
 
 ```
+"AI야, 더빙 기능 만들어줘"
+  → "어, 이건 내가 원한 게 아닌데?"
+  → "파일 업로드도 돼야 해"
+  → "STT도 붙여줘"
+  → ...
+```
+
+막연한 프롬프트 → 수정 반복. 아키텍처는 일관성을 잃고, 에이전트는 컨텍스트를 잃어갑니다. **스펙주도개발**은 코드를 쓰기 전에 먼저 명확하게 정의함으로써 이 문제를 해결합니다.
+
+| 항목            | 바이브 코딩          | 스펙주도개발 (이 프로젝트)  |
+| --------------- | -------------------- | --------------------------- |
+| 시작점          | 막연한 아이디어      | 검증된 명세 문서            |
+| AI의 역할       | 요구사항을 추측      | 명세를 실행                 |
+| 코드 리뷰       | 수천 줄 한꺼번에     | 태스크 단위 소규모          |
+| 아키텍처 일관성 | 기능마다 달라짐      | Constitution으로 강제       |
+| 엣지 케이스     | 구현 후 발견         | 명세 단계에서 사전 발견     |
+
+### Speckits 파이프라인
+
+Speckits는 GitHub의 오픈소스 [spec-kit](https://github.com/github/spec-kit)을 Claude Code 슬래시 커맨드로 포팅한 것입니다.
+
+![Speckits 파이프라인](./public/02-SPEC-Kit.png)
+
+```text
 /speckits/specify  →  /speckits/plan  →  /speckits/tasks  →  /speckits/implement
       ①                    ②                   ③                     ④
   기능 명세 작성       구현 계획 수립       실행 태스크 생성        코드 구현
 ```
 
-### 실제 활용 사례
-
-이 프로젝트에서 구현된 6개 기능은 모두 Speckits 파이프라인을 통해 만들어졌습니다.
-
-| 기능                        | 브랜치                        | Speckits 산출물              |
-| --------------------------- | ----------------------------- | ---------------------------- |
-| Next.js + FSD 기반 설계     | `feat/#1-nextjs-fsd-setup`    | spec.md → plan.md → tasks.md |
-| AI 더빙 코어 (STT→번역→TTS) | `feat/#3-ai-dubbing-core`     | spec.md → plan.md → tasks.md |
-| Google OAuth + 화이트리스트 | `feat/#5-auth-whitelist`      | spec.md → plan.md → tasks.md |
-| UI/UX 폴리싱                | `feat/#8-ui-ux-polish`        | spec.md → tasks.md           |
-| 연속 더빙 생성              | `feat/#10-repeat-dubbing`     | spec.md → plan.md → tasks.md |
-| Vercel 자동 배포            | `feat/#12-vercel-auto-deploy` | spec.md → plan.md → tasks.md |
-
-### Speckits 주요 커맨드
-
 **① `/speckits/specify` — 기능 명세 작성**
 
-새 기능 구현 전 Claude Code에 자연어로 요구사항을 전달하면, GitHub 이슈 생성 · 브랜치 분기 · 명세서(spec.md) 작성 · 자동 명확화 질문을 한 번에 처리합니다.
+자연어로 요구사항을 전달하면 에이전트가 모호한 부분을 자동으로 질문하고 `spec.md`를 생성합니다. 명세는 Given/When/Then 형식의 Acceptance Scenarios로 작성됩니다.
 
 ```bash
-# 예시: AI 더빙 기능 명세 요청
 /speckits/specify 오디오/비디오 파일을 업로드하면 원하는 언어로 더빙해주는 기능
 ```
 
-**② `/speckits/plan` — 기술 설계**
+이 과정에서 "동일 언어 선택 시 번역 생략 최적화", "무음 파일 처리" 같은 엣지 케이스가 구현 전에 드러납니다.
 
-명세서를 바탕으로 FSD 아키텍처, API 계약, 데이터 모델, 의존성을 고려한 구현 계획서(plan.md)를 자동 생성합니다.
+**② `/speckits/plan` — 기술 설계 + Constitution Check**
 
-**③ `/speckits/tasks` — 태스크 분해**
+`plan.md`는 기술 결정과 그 이유를 기록합니다. Constitution Check 게이트를 통해 FSD 레이어 준수, 배럴 패턴 금지 등 아키텍처 원칙을 자동으로 검증합니다.
 
-구현 계획을 Phase별 실행 가능한 태스크(tasks.md)로 분해합니다. 병렬 실행 가능한 태스크는 `[P]` 마크로 표시합니다.
+**③ `/speckits/tasks` — TDD 순서로 태스크 분해**
+
+`tasks.md`는 **"테스트 먼저(RED) → 구현(GREEN)"** 순서를 명시합니다. 병렬 실행 가능한 태스크는 `[P]`로 표시해 에이전트가 두 워커를 동시에 실행할 수 있습니다.
+
+```markdown
+## Phase 4: STT 레이어
+- [x] T008 [P] Write RED test: stt.route.test.ts
+- [x] T009 [P] Implement GREEN: stt/route.ts
+
+## Phase 5: 번역 레이어 ← Phase 4와 병렬 실행 가능
+- [x] T012 [P] Write RED test: translate.route.test.ts
+- [x] T013 [P] Implement GREEN: translateText.ts
+```
 
 **④ `/speckits/implement` — 코드 구현**
 
-tasks.md의 체크박스를 순서대로 처리하며 실제 코드를 작성합니다. 완료된 태스크는 `- [x]`로 표시됩니다.
+`tasks.md`의 체크박스를 순서대로 처리하며 코드를 작성합니다. 각 태스크 완료 후 개발자는 작은 단위의 코드 리뷰만 하면 됩니다.
+
+### 스펙주도개발 + TDD 시너지
+
+AI 에이전트는 "그럴듯한" 코드를 만들지만 "맞는" 코드를 보장하지 않습니다. TDD가 가드레일 역할을 합니다.
+
+![스펙주도개발과 TDD 시너지](./public/01-STD-TDD.png)
+
+```text
+spec.md의 Acceptance Scenarios
+    ↓ (자동 변환)
+tasks.md에서 테스트 먼저 작성 (RED)
+    ↓
+에이전트가 테스트를 통과하는 구현 작성 (GREEN)
+    ↓
+테스트 실패 → 에이전트 자동 자기수정
+    ↓
+모든 테스트 통과 → 태스크 완료
+```
+
+`spec.md`의 Acceptance Scenario가 그대로 테스트 케이스가 됩니다.
+
+```text
+Given 파일 없이 요청, When POST /api/stt → it('파일 없으면 400')
+Given ElevenLabs 429 오류               → it('429 → 크레딧 부족 메시지')
+Given 무음 파일                         → it('빈 텍스트 → 400')
+```
+
+에이전트가 "무엇을 테스트해야 하는가"를 추측할 필요가 없어집니다.
+
+### Constitution으로 아키텍처 원칙 강제
+
+`.specify/memory/constitution.md`에 불변 원칙을 정의하면, 에이전트가 모든 구현 단계에서 자동으로 준수합니다.
+
+- FSD 레이어 계층 (`app → features → entities → shared`) 및 역방향 import 금지
+- 배럴 export 금지 (개별 파일 경로로 import)
+- 환경변수 서버 전용 (`NEXT_PUBLIC_` 사용 금지)
+
+6개 기능 브랜치 전체에서 FSD 아키텍처가 일관되게 유지된 이유입니다.
+
+### 실제 활용 사례
+
+| 기능                        | 브랜치                        | Speckits 산출물                              |
+| --------------------------- | ----------------------------- | -------------------------------------------- |
+| Next.js + FSD 기반 설계     | `feat/#1-nextjs-fsd-setup`    | spec.md → plan.md → tasks.md                 |
+| AI 더빙 코어 (STT→번역→TTS) | `feat/#3-ai-dubbing-core`     | spec.md → plan.md → tasks.md + API contracts |
+| Google OAuth + 화이트리스트 | `feat/#5-auth-whitelist`      | spec.md → plan.md → tasks.md                 |
+| UI/UX 폴리싱                | `feat/#8-ui-ux-polish`        | spec.md → tasks.md                           |
+| 연속 더빙 생성              | `feat/#10-repeat-dubbing`     | spec.md → plan.md → tasks.md                 |
+| Vercel 자동 배포            | `feat/#12-vercel-auto-deploy` | spec.md → plan.md → tasks.md                 |
+
+모든 산출물은 레포지터리의 `specs/feat/` 디렉토리에서 직접 볼 수 있습니다.
 
 ### 에이전트 활용 노하우
 
-**1. 명세를 먼저 작성하면 구현 품질이 높아진다**
+**1. 명세 단계에서 엣지 케이스를 끌어낸다**
 
-`/speckits/specify`로 요구사항을 명세화하면 모호한 부분에 대해 에이전트가 자동으로 질문합니다. 이 과정에서 구현 전에 엣지 케이스와 비기능 요구사항을 미리 확인할 수 있습니다.
+`/speckits/specify`를 실행하면 에이전트가 자동으로 모호한 부분을 질문합니다. 이 질문이 구현 전에 놓쳤던 엣지 케이스를 드러냅니다. 이 프로젝트에서 "원본과 타겟 언어가 같으면 Gemini 호출을 생략한다"는 최적화도 이 과정에서 발견됐습니다. 구현 중에 발견했다면 훨씬 복잡한 리팩토링이 필요했을 겁니다.
 
-**2. 한 번에 하나의 기능에 집중**
+**2. 기능 하나에 브랜치 하나, 스펙 디렉토리 하나**
 
-기능별로 독립적인 브랜치와 스펙 디렉토리(`specs/feat/NNN-slug/`)를 사용하면 에이전트가 컨텍스트를 명확하게 유지합니다. 여러 기능을 동시에 요청하면 품질이 떨어집니다.
+여러 기능을 동시에 요청하면 에이전트의 컨텍스트가 흐트러집니다. `feat/#N-feature-name` 브랜치와 `specs/feat/NNN-slug/` 디렉토리를 항상 1:1로 매핑하세요.
 
-**3. `plan.md`의 아키텍처 결정 테이블 활용**
+**3. 요구사항이 바뀌면 spec.md부터 업데이트**
 
-에이전트가 생성하는 plan.md에는 기술 선택지와 근거가 포함됩니다. 이를 통해 왜 특정 패턴을 사용했는지 나중에 다시 검토하기 쉽습니다.
+구현 중 요구사항이 바뀌면 코드 수정 전에 `spec.md`의 `## Clarifications` 섹션에 변경 이유를 기록하고 에이전트에게 알립니다. 문서와 코드의 일관성이 유지됩니다.
 
-**4. 구현 중 수정 요청 시 spec.md 업데이트 먼저**
+**4. plan.md의 아키텍처 결정은 나중에도 읽는다**
 
-구현 중 요구사항이 바뀌면 spec.md를 먼저 업데이트하고 에이전트에게 알립니다. 이렇게 하면 문서와 코드의 일관성이 유지됩니다.
+몇 주 후에 "왜 이렇게 했지?" 의문이 생길 때 `plan.md`를 보면 그 이유가 적혀 있습니다. 코드만 남기는 것보다 유지보수에 유리합니다.
 
-**5. FSD 아키텍처를 헌법(`constitution.md`)으로 강제**
+**5. 테스트가 에이전트의 자기수정을 유도한다**
 
-`.specify/memory/constitution.md`에 FSD 레이어 규칙, 배럴 export 금지 등 프로젝트 원칙을 정의하면, 에이전트가 구현 시 자동으로 해당 원칙을 준수합니다.
+테스트가 먼저 있으면 에이전트가 구현 코드를 쓴 후 스스로 테스트를 실행하고, 실패하면 자동으로 수정합니다. 개발자가 "이게 맞게 동작하는 건가?" 확인하는 비용이 줄어듭니다.
 
 ### 산출물 디렉토리 구조
 
-```
+```text
 specs/feat/
 ├── 001-nextjs-fsd-setup/
-│   ├── spec.md          # 기능 명세서
-│   ├── plan.md          # 구현 계획서
-│   └── tasks.md         # 실행 태스크 목록
+│   ├── spec.md          # 기능 명세서 (Acceptance Scenarios)
+│   ├── plan.md          # 구현 계획서 (기술 결정 + Constitution Check)
+│   └── tasks.md         # TDD 순서 실행 태스크 목록
 ├── 003-ai-dubbing-core/
 │   ├── spec.md
 │   ├── plan.md
