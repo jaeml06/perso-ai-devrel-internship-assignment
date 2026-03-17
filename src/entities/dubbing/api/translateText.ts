@@ -1,4 +1,4 @@
-import ky from 'ky';
+import ky, { HTTPError } from 'ky';
 import {
   type TranslationSourceLanguage,
   type DubbingLanguage,
@@ -18,8 +18,15 @@ interface TranslateResponse {
 export async function translateText(
   request: TranslateRequest,
 ): Promise<TranslateResponse> {
-  const result = await ky
-    .post('/api/translate', { json: request, timeout: false })
-    .json<TranslateResponse>();
-  return result;
+  try {
+    return await ky
+      .post('/api/translate', { json: request, timeout: false })
+      .json<TranslateResponse>();
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      const data = await error.response.json<{ error?: string }>();
+      throw new Error(data.error ?? '번역에 실패했습니다');
+    }
+    throw error;
+  }
 }
