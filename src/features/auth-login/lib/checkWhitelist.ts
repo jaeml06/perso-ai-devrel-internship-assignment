@@ -1,13 +1,17 @@
+import { AUTH_ERROR_REDIRECT } from '@/features/auth-login/lib/authErrorType';
+
 export async function checkWhitelist(
   email: string | null | undefined,
   isWhitelistedFn: (email: string) => Promise<boolean>,
-): Promise<boolean> {
-  if (!email) return false;
+): Promise<true | string> {
+  if (!email) return AUTH_ERROR_REDIRECT.no_email;
 
   try {
-    return await isWhitelistedFn(email);
-  } catch {
-    // Fail-closed: block access on any DB error (SC-002)
-    return false;
+    const isWhitelisted = await isWhitelistedFn(email);
+    if (!isWhitelisted) return AUTH_ERROR_REDIRECT.not_whitelisted;
+    return true;
+  } catch (error) {
+    console.error('[auth][server_error]', new Date().toISOString(), error);
+    return AUTH_ERROR_REDIRECT.server_error;
   }
 }
