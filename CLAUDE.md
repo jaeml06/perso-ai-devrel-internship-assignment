@@ -9,6 +9,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-09
 - N/A (클라이언트 메모리 상태 + Blob URL) (feat/#10-repeat-dubbing)
 - TypeScript 5 + Next.js 16 (App Router), React 19, next-auth@beta (Auth.js v5), @libsql/client (Turso) (feat/#15-auth-error-feedback)
 - Turso (libSQL) — 화이트리스트 조회 (기존) (feat/#15-auth-error-feedback)
+- TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, clsx, tailwind-merge (feat/#17-dual-media-view)
+- N/A (클라이언트 Blob URL — 서버 저장 없음) (feat/#17-dual-media-view)
 
 - N/A (세션 내 메모리만 사용, 서버 저장 없음) (feat/#3-ai-dubbing-core)
 - TypeScript 5.x + next-auth@beta (Auth.js v5), @libsql/client (Turso) (feat/#5-auth-whitelist)
@@ -33,9 +35,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- feat/#17-dual-media-view: Added TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, clsx, tailwind-merge
 - feat/#15-auth-error-feedback: Added TypeScript 5 + Next.js 16 (App Router), React 19, next-auth@beta (Auth.js v5), @libsql/client (Turso)
 - feat/#12-vercel-auto-deploy: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- feat/#10-repeat-dubbing: Added TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, CVA, clsx, tailwind-merge, ky, zod, Radix UI, vaul
 
 
 <!-- MANUAL ADDITIONS START -->
