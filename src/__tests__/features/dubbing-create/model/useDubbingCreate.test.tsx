@@ -22,6 +22,10 @@ vi.mock('@/entities/voice/api/getVoices', () => ({
   getVoices: vi.fn(),
 }));
 
+vi.mock('@/features/dubbing-create/lib/mergeVideoAudio', () => ({
+  mergeVideoAudio: vi.fn(),
+}));
+
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -104,7 +108,10 @@ async function completeSuccessfulSubmit(options?: {
     translatedText: translation.translatedText,
     wasSkipped: translation.wasSkipped,
   });
-  vi.mocked(createDubbing).mockResolvedValueOnce(audioUrl);
+  vi.mocked(createDubbing).mockResolvedValueOnce({
+    url: audioUrl,
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+  });
 
   const hook = await renderUseDubbingCreate();
 
@@ -283,7 +290,7 @@ describe('useDubbingCreate (pipeline)', () => {
       translatedText: '다시',
       wasSkipped: false,
     });
-    vi.mocked(createDubbing).mockResolvedValueOnce('blob:http://localhost/audio-2');
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio-2', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
 
     await act(async () => {
       await initial.result.current.submit();
@@ -316,7 +323,7 @@ describe('useDubbingCreate (pipeline)', () => {
       translatedText: 'Second',
       wasSkipped: true,
     });
-    vi.mocked(createDubbing).mockResolvedValueOnce('blob:http://localhost/audio-2');
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio-2', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
 
     act(() => {
       initial.result.current.setFile(nextFile);
@@ -400,7 +407,7 @@ describe('useDubbingCreate (pipeline)', () => {
       translatedText: '안녕하세요',
       wasSkipped: false,
     });
-    vi.mocked(createDubbing).mockResolvedValueOnce('blob:http://localhost/audio-retry');
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio-retry', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
 
     act(() => {
       void result.current.retry();
@@ -455,7 +462,7 @@ describe('useDubbingCreate (pipeline)', () => {
       translatedText: '복구됨',
       wasSkipped: false,
     });
-    vi.mocked(createDubbing).mockResolvedValueOnce('blob:http://localhost/audio-recovered');
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio-recovered', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
 
     await act(async () => {
       await result.current.submit();
@@ -477,6 +484,92 @@ describe('useDubbingCreate (pipeline)', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/audio-cleanup');
   });
 
+  it('초기 상태: sourceUrl null, mediaType null', async () => {
+    const { result } = await renderUseDubbingCreate();
+
+    expect(result.current.sourceUrl).toBeNull();
+    expect(result.current.mediaType).toBeNull();
+  });
+
+  it('파일 설정 시 sourceUrl이 Blob URL로 설정된다', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/source-1');
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile('clip.mp4', 'video/mp4'));
+    });
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceUrl).toBe('blob:http://localhost/source-1');
+
+    createObjectURL.mockRestore();
+  });
+
+  it('파일 설정 시 mediaType이 올바르게 설정된다 (video)', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/source-1');
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile('clip.mp4', 'video/mp4'));
+    });
+
+    expect(result.current.mediaType).toBe('video');
+
+    vi.mocked(URL.createObjectURL).mockRestore();
+  });
+
+  it('파일 설정 시 mediaType이 올바르게 설정된다 (audio)', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/source-1');
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile('song.mp3', 'audio/mpeg'));
+    });
+
+    expect(result.current.mediaType).toBe('audio');
+
+    vi.mocked(URL.createObjectURL).mockRestore();
+  });
+
+  it('파일 변경 시 이전 sourceUrl이 해제된다', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:http://localhost/source-1')
+      .mockReturnValueOnce('blob:http://localhost/source-2');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile('first.mp4', 'video/mp4'));
+    });
+
+    act(() => {
+      result.current.setFile(makeFile('second.mp3', 'audio/mpeg'));
+    });
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/source-1');
+    expect(result.current.sourceUrl).toBe('blob:http://localhost/source-2');
+
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it('unmount 시 sourceUrl이 해제된다', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/source-cleanup');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const hook = await renderUseDubbingCreate();
+
+    act(() => {
+      hook.result.current.setFile(makeFile('clip.mp4', 'video/mp4'));
+    });
+
+    hook.unmount();
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/source-cleanup');
+
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
   it('STT가 지원하지 않는 languageCode(fr) 반환 → translateText에 sourceLanguage: auto 전달', async () => {
     const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
     const { translateText } = await import('@/entities/dubbing/api/translateText');
@@ -490,7 +583,7 @@ describe('useDubbingCreate (pipeline)', () => {
       translatedText: '안녕하세요',
       wasSkipped: false,
     });
-    vi.mocked(createDubbing).mockResolvedValueOnce('blob:http://localhost/audio');
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
 
     const { result } = await renderUseDubbingCreate();
 
@@ -507,5 +600,148 @@ describe('useDubbingCreate (pipeline)', () => {
       expect.objectContaining({ sourceLanguage: 'auto' }),
     );
     expect(result.current.pipelineStatus).toBe('complete');
+  });
+
+  it('파일을 null로 설정 시 sourceUrl이 해제되고 null로 리셋된다', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/source-null');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile('clip.mp4', 'video/mp4'));
+    });
+
+    expect(result.current.sourceUrl).toBe('blob:http://localhost/source-null');
+
+    act(() => {
+      result.current.setFile(null);
+    });
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/source-null');
+    expect(result.current.sourceUrl).toBeNull();
+    expect(result.current.mediaType).toBeNull();
+
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it('submit 후에도 sourceUrl이 유지된다', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:http://localhost/source-keep')
+      .mockReturnValueOnce('blob:http://localhost/audio-result');
+    const { result } = await completeSuccessfulSubmit({
+      file: makeFile('clip.mp4', 'video/mp4'),
+      audioUrl: 'blob:http://localhost/audio-result',
+    });
+
+    expect(result.current.sourceUrl).toBe('blob:http://localhost/source-keep');
+
+    createObjectURL.mockRestore();
+  });
+});
+
+describe('useDubbingCreate (video merging)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('영상 파일 더빙 완료 시 merging 단계를 거쳐 dubbedVideoUrl이 설정된다', async () => {
+    const { mergeVideoAudio } = await import('@/features/dubbing-create/lib/mergeVideoAudio');
+    vi.mocked(mergeVideoAudio).mockResolvedValueOnce({
+      url: 'blob:http://localhost/merged-video',
+      blob: new Blob(['merged'], { type: 'video/mp4' }),
+    });
+
+    const { result } = await completeSuccessfulSubmit({
+      file: makeFile('clip.mp4', 'video/mp4'),
+    });
+
+    expect(result.current.pipelineStatus).toBe('complete');
+    expect(result.current.dubbedVideoUrl).toBe('blob:http://localhost/merged-video');
+    expect(mergeVideoAudio).toHaveBeenCalledTimes(1);
+  });
+
+  it('오디오 파일 더빙 시 merging 단계를 건너뛴다', async () => {
+    const { mergeVideoAudio } = await import('@/features/dubbing-create/lib/mergeVideoAudio');
+
+    const { result } = await completeSuccessfulSubmit({
+      file: makeFile('song.mp3', 'audio/mpeg'),
+    });
+
+    expect(result.current.pipelineStatus).toBe('complete');
+    expect(result.current.dubbedVideoUrl).toBeNull();
+    expect(mergeVideoAudio).not.toHaveBeenCalled();
+  });
+
+  it('merging 실패 시 dubbedVideoUrl은 null이고 audioUrl 폴백으로 complete된다', async () => {
+    const { mergeVideoAudio } = await import('@/features/dubbing-create/lib/mergeVideoAudio');
+    vi.mocked(mergeVideoAudio).mockRejectedValueOnce(new Error('merge failed'));
+
+    const { result } = await completeSuccessfulSubmit({
+      file: makeFile('clip.mp4', 'video/mp4'),
+    });
+
+    expect(result.current.pipelineStatus).toBe('complete');
+    expect(result.current.dubbedVideoUrl).toBeNull();
+    expect(result.current.audioUrl).not.toBeNull();
+  });
+
+  it('반복 더빙 시 이전 dubbedVideoUrl이 해제된다', async () => {
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { mergeVideoAudio } = await import('@/features/dubbing-create/lib/mergeVideoAudio');
+    vi.mocked(mergeVideoAudio)
+      .mockResolvedValueOnce({
+        url: 'blob:http://localhost/merged-1',
+        blob: new Blob(['m1'], { type: 'video/mp4' }),
+      })
+      .mockResolvedValueOnce({
+        url: 'blob:http://localhost/merged-2',
+        blob: new Blob(['m2'], { type: 'video/mp4' }),
+      });
+
+    const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
+    const { translateText } = await import('@/entities/dubbing/api/translateText');
+    const { createDubbing } = await import('@/entities/dubbing/api/createDubbing');
+
+    const first = await completeSuccessfulSubmit({
+      file: makeFile('clip.mp4', 'video/mp4'),
+    });
+
+    expect(first.result.current.dubbedVideoUrl).toBe('blob:http://localhost/merged-1');
+
+    vi.mocked(transcribeFile).mockResolvedValueOnce(buildTranscriptionResult());
+    vi.mocked(translateText).mockResolvedValueOnce({
+      translatedText: '다시',
+      wasSkipped: false,
+    });
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio-2', blob: new Blob(['audio'], { type: 'audio/mpeg' }) });
+
+    await act(async () => {
+      await first.result.current.submit();
+    });
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/merged-1');
+    expect(first.result.current.dubbedVideoUrl).toBe('blob:http://localhost/merged-2');
+  });
+
+  it('unmount 시 dubbedVideoUrl이 해제된다', async () => {
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { mergeVideoAudio } = await import('@/features/dubbing-create/lib/mergeVideoAudio');
+    vi.mocked(mergeVideoAudio).mockResolvedValueOnce({
+      url: 'blob:http://localhost/merged-cleanup',
+      blob: new Blob(['m'], { type: 'video/mp4' }),
+    });
+
+    const hook = await completeSuccessfulSubmit({
+      file: makeFile('clip.mp4', 'video/mp4'),
+    });
+
+    hook.unmount();
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/merged-cleanup');
   });
 });

@@ -31,7 +31,8 @@ describe('createDubbing', () => {
     expect(ky.post).toHaveBeenCalledWith('/api/tts', expect.objectContaining({
       json: { text: '안녕하세요', voiceId: '21m00Tcm4TlvDq8ikWAM', language: 'ko' },
     }));
-    expect(result).toBe('blob:http://localhost/test-audio');
+    expect(result.url).toBe('blob:http://localhost/test-audio');
+    expect(result.blob).toBeInstanceOf(Blob);
   });
 
   it('400 에러 시 메시지와 함께 예외를 throw한다', async () => {
@@ -72,7 +73,7 @@ describe('createDubbing', () => {
 
     expect(ky.post).toHaveBeenCalledTimes(2);
     expect(global.URL.createObjectURL).toHaveBeenCalledTimes(2);
-    expect(firstResult).toBe('blob:http://localhost/audio-1');
-    expect(secondResult).toBe('blob:http://localhost/audio-2');
+    expect(firstResult.url).toBe('blob:http://localhost/audio-1');
+    expect(secondResult.url).toBe('blob:http://localhost/audio-2');
   });
 });

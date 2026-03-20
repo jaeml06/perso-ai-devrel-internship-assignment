@@ -15,11 +15,12 @@ const STEPS: { status: DubbingPipelineStatus; label: string }[] = [
   { status: 'transcribing', label: 'STT' },
   { status: 'translating', label: '번역' },
   { status: 'synthesizing', label: 'TTS' },
+  { status: 'merging', label: '영상 합성' },
   { status: 'complete', label: '완료' },
 ];
 
 const STATUS_ORDER: DubbingPipelineStatus[] = [
-  'idle', 'transcribing', 'translating', 'synthesizing', 'complete',
+  'idle', 'transcribing', 'translating', 'synthesizing', 'merging', 'complete',
 ];
 
 function getStepState(

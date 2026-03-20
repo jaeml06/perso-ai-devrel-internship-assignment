@@ -11,6 +11,8 @@ import {
 import { type Voice } from '@/entities/voice/dto/voice.dto';
 import { validateFileInput } from '@/features/dubbing-create/lib/validateFileInput';
 import { isProcessingPipelineStatus } from '@/features/dubbing-create/lib/pipelineStatus';
+import { type MediaType, getMediaType } from '@/features/dubbing-create/lib/mediaType';
+import { mergeVideoAudio } from '@/features/dubbing-create/lib/mergeVideoAudio';
 import { transcribeFile } from '@/entities/dubbing/api/transcribeFile';
 import { translateText } from '@/entities/dubbing/api/translateText';
 import { createDubbing } from '@/entities/dubbing/api/createDubbing';
@@ -26,6 +28,9 @@ export function useDubbingCreate() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<FileValidationErrors>({});
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<MediaType | null>(null);
+  const [dubbedVideoUrl, setDubbedVideoUrl] = useState<string | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voicesError, setVoicesError] = useState<string | null>(null);
 
@@ -34,6 +39,8 @@ export function useDubbingCreate() {
   const latestVoiceId = useRef(voiceId);
   const latestTargetLanguage = useRef(targetLanguage);
   const activeAudioUrl = useRef<string | null>(null);
+  const activeSourceUrl = useRef<string | null>(null);
+  const activeDubbedVideoUrl = useRef<string | null>(null);
 
   useEffect(() => { latestFile.current = file; }, [file]);
   useEffect(() => { latestVoiceId.current = voiceId; }, [voiceId]);
@@ -62,21 +69,53 @@ export function useDubbingCreate() {
     void load();
   }, []);
 
+  const revokeSourceUrl = useCallback(() => {
+    if (!activeSourceUrl.current) return;
+    URL.revokeObjectURL(activeSourceUrl.current);
+    activeSourceUrl.current = null;
+  }, []);
+
+  const handleSetFile = useCallback((newFile: File | null) => {
+    revokeSourceUrl();
+    setFile(newFile);
+    if (newFile) {
+      const url = URL.createObjectURL(newFile);
+      activeSourceUrl.current = url;
+      setSourceUrl(url);
+      setMediaType(getMediaType(newFile));
+    } else {
+      setSourceUrl(null);
+      setMediaType(null);
+    }
+  }, [revokeSourceUrl]);
+
   const revokeAudioUrl = useCallback(() => {
     if (!activeAudioUrl.current) return;
     URL.revokeObjectURL(activeAudioUrl.current);
     activeAudioUrl.current = null;
   }, []);
 
+  const revokeDubbedVideoUrl = useCallback(() => {
+    if (!activeDubbedVideoUrl.current) return;
+    URL.revokeObjectURL(activeDubbedVideoUrl.current);
+    activeDubbedVideoUrl.current = null;
+  }, []);
+
   const resetSessionState = useCallback(() => {
     revokeAudioUrl();
+    revokeDubbedVideoUrl();
     setAudioUrl(null);
+    setDubbedVideoUrl(null);
     setTranscription(null);
     setTranslation(null);
     setErrorMessage(null);
-  }, [revokeAudioUrl]);
+  }, [revokeAudioUrl, revokeDubbedVideoUrl]);
 
-  useEffect(() => () => revokeAudioUrl(), [revokeAudioUrl]);
+  useEffect(() => () => {
+    revokeAudioUrl();
+    revokeSourceUrl();
+    revokeDubbedVideoUrl();
+  }, [revokeAudioUrl, revokeSourceUrl, revokeDubbedVideoUrl]);
 
   const runPipeline = useCallback(async (
     currentFile: File | null,
@@ -115,13 +154,29 @@ export function useDubbingCreate() {
       });
 
       setPipelineStatus('synthesizing');
-      const url = await createDubbing({
+      const ttsResult = await createDubbing({
         text: translateResult.translatedText,
         voiceId: currentVoiceId,
         language: currentTargetLanguage,
       });
-      activeAudioUrl.current = url;
-      setAudioUrl(url);
+      activeAudioUrl.current = ttsResult.url;
+      setAudioUrl(ttsResult.url);
+
+      const currentMediaType = currentFile ? getMediaType(currentFile) : null;
+      if (currentMediaType === 'video' && currentFile) {
+        setPipelineStatus('merging');
+        try {
+          const mergeResult = await mergeVideoAudio({
+            videoFile: currentFile,
+            audioBlob: ttsResult.blob,
+          });
+          activeDubbedVideoUrl.current = mergeResult.url;
+          setDubbedVideoUrl(mergeResult.url);
+        } catch {
+          setDubbedVideoUrl(null);
+        }
+      }
+
       setPipelineStatus('complete');
     } catch (error) {
       setPipelineStatus('error');
@@ -141,7 +196,7 @@ export function useDubbingCreate() {
 
   return {
     file,
-    setFile,
+    setFile: handleSetFile,
     targetLanguage,
     setTargetLanguage,
     voiceId,
@@ -150,6 +205,9 @@ export function useDubbingCreate() {
     transcription,
     translation,
     audioUrl,
+    sourceUrl,
+    mediaType,
+    dubbedVideoUrl,
     errorMessage,
     validationErrors,
     voices,

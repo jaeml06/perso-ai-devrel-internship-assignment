@@ -1,11 +1,17 @@
 import ky, { HTTPError } from 'ky';
 import { type DubbingRequest } from '@/entities/dubbing/dto/dubbing.dto';
 
-export async function createDubbing(request: DubbingRequest): Promise<string> {
+export interface CreateDubbingResult {
+  url: string;
+  blob: Blob;
+}
+
+export async function createDubbing(request: DubbingRequest): Promise<CreateDubbingResult> {
   try {
     const response = await ky.post('/api/tts', { json: request, timeout: false });
     const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    return { url, blob };
   } catch (error) {
     if (error instanceof HTTPError) {
       const data = await error.response.json<{ error?: string }>();

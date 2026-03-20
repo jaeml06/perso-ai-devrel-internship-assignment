@@ -69,6 +69,7 @@ export type DubbingPipelineStatus =
   | 'transcribing'
   | 'translating'
   | 'synthesizing'
+  | 'merging'
   | 'complete'
   | 'error';
 
@@ -77,6 +78,7 @@ export const PIPELINE_STATUS_MESSAGES: Record<DubbingPipelineStatus, string> = {
   transcribing: '음성을 텍스트로 변환 중...',
   translating: '텍스트를 번역 중...',
   synthesizing: '음성을 합성 중...',
+  merging: '영상 합성 중...',
   complete: '더빙 완료',
   error: '오류가 발생했습니다',
 };
