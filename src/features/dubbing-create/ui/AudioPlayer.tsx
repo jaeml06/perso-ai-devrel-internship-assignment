@@ -4,9 +4,11 @@ import { useRef, useState } from 'react';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  showDownload?: boolean;
+  downloadFilename?: string;
 }
 
-export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, showDownload = true, downloadFilename = 'dubbing.mp3' }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -87,13 +89,15 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
           />
         )}
       </div>
-      <a
-        href={audioUrl}
-        download="dubbing.mp3"
-        className='self-start text-sm text-primary underline hover:text-primary/80 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring rounded'
-      >
-        다운로드
-      </a>
+      {showDownload ? (
+        <a
+          href={audioUrl}
+          download={downloadFilename}
+          className='self-start text-sm text-primary underline hover:text-primary/80 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring rounded'
+        >
+          다운로드
+        </a>
+      ) : null}
     </div>
   );
 }
