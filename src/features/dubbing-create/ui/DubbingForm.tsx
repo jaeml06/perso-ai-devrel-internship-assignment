@@ -1,8 +1,11 @@
 'use client';
 
-import { type DubbingLanguage } from '@/entities/dubbing/dto/dubbing.dto';
+import {
+  type DubbingLanguage,
+  type FileValidationErrors,
+  MAX_MEDIA_DURATION_SECONDS,
+} from '@/entities/dubbing/dto/dubbing.dto';
 import { type Voice } from '@/entities/voice/dto/voice.dto';
-import { type FileValidationErrors } from '@/entities/dubbing/dto/dubbing.dto';
 import { VoiceSelector } from '@/features/dubbing-create/ui/VoiceSelector';
 
 interface DubbingFormProps {
@@ -16,6 +19,7 @@ interface DubbingFormProps {
   voicesError: string | null;
   onVoicesRetry: () => void;
   validationErrors: FileValidationErrors;
+  fileDuration: number | null;
   disabled?: boolean;
   onSubmit: () => void;
 }
@@ -31,11 +35,15 @@ export function DubbingForm({
   voicesError,
   onVoicesRetry,
   validationErrors,
+  fileDuration,
   disabled,
   onSubmit,
 }: DubbingFormProps) {
   const isInputDisabled = disabled === true;
   const isSubmitDisabled = isInputDisabled || !file || !voiceId || !targetLanguage;
+  const shouldShowCropNotice = fileDuration !== null && fileDuration > MAX_MEDIA_DURATION_SECONDS;
+  const cropMinutes = shouldShowCropNotice ? Math.floor(fileDuration / 60) : 0;
+  const cropSeconds = shouldShowCropNotice ? Math.floor(fileDuration % 60) : 0;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
@@ -61,6 +69,11 @@ export function DubbingForm({
           disabled={isInputDisabled}
         />
         {file && <span className='truncate max-w-[200px] text-sm text-muted-foreground'>{file.name}</span>}
+        {shouldShowCropNotice && (
+          <p className='text-sm text-amber-600' aria-live='polite'>
+            원본 길이: {cropMinutes}분 {cropSeconds}초 → 처음 1분만 처리됩니다
+          </p>
+        )}
         {validationErrors.file && (
           <p className='text-sm text-destructive' aria-live='polite'>{validationErrors.file}</p>
         )}

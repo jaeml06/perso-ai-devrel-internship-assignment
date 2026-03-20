@@ -49,6 +49,7 @@ function buildHookState(
     sourceUrl: null,
     mediaType: null,
     dubbedVideoUrl: null,
+    fileDuration: null,
     submit: vi.fn(),
     retry: vi.fn(),
     ...overrides,

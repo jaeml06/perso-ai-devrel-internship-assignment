@@ -43,4 +43,14 @@ describe('AudioPlayer', () => {
     const audio = document.querySelector('audio');
     expect(audio).toBeInTheDocument();
   });
+
+  it('메타데이터 로드 후 경과 시간과 총 길이를 표시한다', () => {
+    render(<AudioPlayer audioUrl={mockAudioUrl} />);
+    const audio = document.querySelector('audio')!;
+
+    Object.defineProperty(audio, 'duration', { value: 125, writable: true });
+    fireEvent.loadedMetadata(audio);
+
+    expect(screen.getByText(/0:00 \/ 2:05/)).toBeInTheDocument();
+  });
 });

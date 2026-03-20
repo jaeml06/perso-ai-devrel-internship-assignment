@@ -7,12 +7,15 @@ import {
   type TranscriptionResult,
   type TranslationResult,
   type FileValidationErrors,
+  MAX_MEDIA_DURATION_SECONDS,
 } from '@/entities/dubbing/dto/dubbing.dto';
 import { type Voice } from '@/entities/voice/dto/voice.dto';
 import { validateFileInput } from '@/features/dubbing-create/lib/validateFileInput';
 import { isProcessingPipelineStatus } from '@/features/dubbing-create/lib/pipelineStatus';
 import { type MediaType, getMediaType } from '@/features/dubbing-create/lib/mediaType';
 import { mergeVideoAudio } from '@/features/dubbing-create/lib/mergeVideoAudio';
+import { cropMedia } from '@/features/dubbing-create/lib/cropMedia';
+import { getMediaDuration } from '@/features/dubbing-create/lib/getMediaDuration';
 import { transcribeFile } from '@/entities/dubbing/api/transcribeFile';
 import { translateText } from '@/entities/dubbing/api/translateText';
 import { createDubbing } from '@/entities/dubbing/api/createDubbing';
@@ -33,6 +36,7 @@ export function useDubbingCreate() {
   const [dubbedVideoUrl, setDubbedVideoUrl] = useState<string | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voicesError, setVoicesError] = useState<string | null>(null);
+  const [fileDuration, setFileDuration] = useState<number | null>(null);
 
   // Keep latest inputs for retry
   const latestFile = useRef(file);
@@ -83,9 +87,11 @@ export function useDubbingCreate() {
       activeSourceUrl.current = url;
       setSourceUrl(url);
       setMediaType(getMediaType(newFile));
+      getMediaDuration(newFile).then(setFileDuration).catch(() => setFileDuration(null));
     } else {
       setSourceUrl(null);
       setMediaType(null);
+      setFileDuration(null);
     }
   }, [revokeSourceUrl]);
 
@@ -132,8 +138,15 @@ export function useDubbingCreate() {
     resetSessionState();
 
     try {
+      setPipelineStatus('cropping');
+      const cropResult = await cropMedia({
+        file: currentFile!,
+        maxDurationSeconds: MAX_MEDIA_DURATION_SECONDS,
+      });
+      const fileForPipeline = cropResult.file;
+
       setPipelineStatus('transcribing');
-      const sttResult = await transcribeFile(currentFile!);
+      const sttResult = await transcribeFile(fileForPipeline);
       setTranscription(sttResult);
 
       const normalizedSourceLanguage = (['ko', 'en'] as string[]).includes(sttResult.languageCode)
@@ -210,6 +223,7 @@ export function useDubbingCreate() {
     dubbedVideoUrl,
     errorMessage,
     validationErrors,
+    fileDuration,
     voices,
     voicesError,
     loadVoices,

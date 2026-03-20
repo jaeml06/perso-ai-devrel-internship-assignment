@@ -11,6 +11,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-09
 - Turso (libSQL) — 화이트리스트 조회 (기존) (feat/#15-auth-error-feedback)
 - TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, clsx, tailwind-merge (feat/#17-dual-media-view)
 - N/A (클라이언트 Blob URL — 서버 저장 없음) (feat/#17-dual-media-view)
+- TypeScript 5.x + Next.js 16 (App Router), React 19, `@ffmpeg/ffmpeg@0.12.15`, `@ffmpeg/util@0.12.2` (feat/#19-client-audio-crop)
 
 - N/A (세션 내 메모리만 사용, 서버 저장 없음) (feat/#3-ai-dubbing-core)
 - TypeScript 5.x + next-auth@beta (Auth.js v5), @libsql/client (Turso) (feat/#5-auth-whitelist)
@@ -35,9 +36,9 @@ npm test && npm run lint
 TypeScript 5.x: Follow standard conventions
 
 ## Recent Changes
+- feat/#19-client-audio-crop: Added TypeScript 5.x + Next.js 16 (App Router), React 19, `@ffmpeg/ffmpeg@0.12.15`, `@ffmpeg/util@0.12.2`
 - feat/#17-dual-media-view: Added TypeScript 5 + Next.js 16 (App Router), React 19, Tailwind CSS 4, clsx, tailwind-merge
 - feat/#15-auth-error-feedback: Added TypeScript 5 + Next.js 16 (App Router), React 19, next-auth@beta (Auth.js v5), @libsql/client (Turso)
-- feat/#12-vercel-auto-deploy: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 
 <!-- MANUAL ADDITIONS START -->

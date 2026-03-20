@@ -26,6 +26,14 @@ vi.mock('@/features/dubbing-create/lib/mergeVideoAudio', () => ({
   mergeVideoAudio: vi.fn(),
 }));
 
+vi.mock('@/features/dubbing-create/lib/cropMedia', () => ({
+  cropMedia: vi.fn(),
+}));
+
+vi.mock('@/features/dubbing-create/lib/getMediaDuration', () => ({
+  getMediaDuration: vi.fn(),
+}));
+
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -128,9 +136,21 @@ async function completeSuccessfulSubmit(options?: {
   return { ...hook, file, voiceId, targetLanguage, transcription, translation, audioUrl };
 }
 
+async function mockCropMediaPassthrough() {
+  const { cropMedia } = await import('@/features/dubbing-create/lib/cropMedia');
+  vi.mocked(cropMedia).mockImplementation(async ({ file }) => ({
+    file,
+    wasCropped: false,
+    originalDuration: 30,
+  }));
+  const { getMediaDuration } = await import('@/features/dubbing-create/lib/getMediaDuration');
+  vi.mocked(getMediaDuration).mockResolvedValue(30);
+}
+
 describe('useDubbingCreate (pipeline)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
+    await mockCropMediaPassthrough();
   });
 
   afterEach(() => {
@@ -641,8 +661,9 @@ describe('useDubbingCreate (pipeline)', () => {
 });
 
 describe('useDubbingCreate (video merging)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
+    await mockCropMediaPassthrough();
   });
 
   afterEach(() => {
@@ -743,5 +764,192 @@ describe('useDubbingCreate (video merging)', () => {
     hook.unmount();
 
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:http://localhost/merged-cleanup');
+  });
+});
+
+describe('useDubbingCreate (크롭 통합)', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    const { getMediaDuration } = await import('@/features/dubbing-create/lib/getMediaDuration');
+    vi.mocked(getMediaDuration).mockResolvedValue(30);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('120초 파일 submit 시 pipelineStatus가 cropping → transcribing 순서로 전환', async () => {
+    const { cropMedia } = await import('@/features/dubbing-create/lib/cropMedia');
+    const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
+    const { translateText } = await import('@/entities/dubbing/api/translateText');
+    const { createDubbing } = await import('@/entities/dubbing/api/createDubbing');
+
+    const croppedFile = makeFile('cropped.mp3', 'audio/mpeg');
+    const cropDeferred = createDeferred<{ file: File; wasCropped: boolean; originalDuration: number }>();
+    vi.mocked(cropMedia).mockReturnValueOnce(cropDeferred.promise);
+    vi.mocked(transcribeFile).mockResolvedValueOnce(buildTranscriptionResult());
+    vi.mocked(translateText).mockResolvedValueOnce({ translatedText: '안녕', wasSkipped: false });
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio', blob: new Blob(['a'], { type: 'audio/mpeg' }) });
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+      result.current.setVoiceId('voice123');
+    });
+
+    act(() => {
+      void result.current.submit();
+    });
+
+    await waitFor(() => {
+      expect(result.current.pipelineStatus).toBe('cropping');
+    });
+
+    await act(async () => {
+      cropDeferred.resolve({ file: croppedFile, wasCropped: true, originalDuration: 120 });
+      await cropDeferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.pipelineStatus).toBe('complete');
+    });
+
+    expect(transcribeFile).toHaveBeenCalledWith(croppedFile);
+  });
+
+  it('45초 파일 submit 시 원본 파일 그대로 transcribeFile에 전달', async () => {
+    const { cropMedia } = await import('@/features/dubbing-create/lib/cropMedia');
+    const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
+    const { translateText } = await import('@/entities/dubbing/api/translateText');
+    const { createDubbing } = await import('@/entities/dubbing/api/createDubbing');
+
+    const originalFile = makeFile('short.mp3', 'audio/mpeg');
+    vi.mocked(cropMedia).mockResolvedValueOnce({ file: originalFile, wasCropped: false, originalDuration: 45 });
+    vi.mocked(transcribeFile).mockResolvedValueOnce(buildTranscriptionResult());
+    vi.mocked(translateText).mockResolvedValueOnce({ translatedText: '안녕', wasSkipped: false });
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio', blob: new Blob(['a'], { type: 'audio/mpeg' }) });
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(originalFile);
+      result.current.setVoiceId('voice123');
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(transcribeFile).toHaveBeenCalledWith(originalFile);
+  });
+
+  it('크롭 성공 시 크롭된 파일이 transcribeFile에 전달됨', async () => {
+    const { cropMedia } = await import('@/features/dubbing-create/lib/cropMedia');
+    const { transcribeFile } = await import('@/entities/dubbing/api/transcribeFile');
+    const { translateText } = await import('@/entities/dubbing/api/translateText');
+    const { createDubbing } = await import('@/entities/dubbing/api/createDubbing');
+
+    const croppedFile = makeFile('cropped.mp3', 'audio/mpeg');
+    vi.mocked(cropMedia).mockResolvedValueOnce({ file: croppedFile, wasCropped: true, originalDuration: 120 });
+    vi.mocked(transcribeFile).mockResolvedValueOnce(buildTranscriptionResult());
+    vi.mocked(translateText).mockResolvedValueOnce({ translatedText: '안녕', wasSkipped: false });
+    vi.mocked(createDubbing).mockResolvedValueOnce({ url: 'blob:http://localhost/audio', blob: new Blob(['a'], { type: 'audio/mpeg' }) });
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+      result.current.setVoiceId('voice123');
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(transcribeFile).toHaveBeenCalledWith(croppedFile);
+  });
+
+  it('크롭 실패 시 pipelineStatus: error 및 errorMessage 설정', async () => {
+    const { cropMedia } = await import('@/features/dubbing-create/lib/cropMedia');
+    vi.mocked(cropMedia).mockRejectedValueOnce(new Error('미디어 크롭에 실패했습니다'));
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+      result.current.setVoiceId('voice123');
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(result.current.pipelineStatus).toBe('error');
+    expect(result.current.errorMessage).toBe('미디어 크롭에 실패했습니다');
+  });
+});
+
+describe('useDubbingCreate (fileDuration)', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await mockCropMediaPassthrough();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('파일 선택 시 fileDuration이 업데이트된다', async () => {
+    const { getMediaDuration } = await import('@/features/dubbing-create/lib/getMediaDuration');
+    vi.mocked(getMediaDuration).mockResolvedValueOnce(120);
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+    });
+
+    await waitFor(() => {
+      expect(result.current.fileDuration).toBe(120);
+    });
+  });
+
+  it('파일 제거 시 fileDuration이 null로 리셋된다', async () => {
+    const { getMediaDuration } = await import('@/features/dubbing-create/lib/getMediaDuration');
+    vi.mocked(getMediaDuration).mockResolvedValueOnce(120);
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+    });
+
+    await waitFor(() => {
+      expect(result.current.fileDuration).toBe(120);
+    });
+
+    act(() => {
+      result.current.setFile(null);
+    });
+
+    expect(result.current.fileDuration).toBeNull();
+  });
+
+  it('getMediaDuration 실패 시 fileDuration이 null (에러 무시)', async () => {
+    const { getMediaDuration } = await import('@/features/dubbing-create/lib/getMediaDuration');
+    vi.mocked(getMediaDuration).mockRejectedValueOnce(new Error('failed'));
+
+    const { result } = await renderUseDubbingCreate();
+
+    act(() => {
+      result.current.setFile(makeFile());
+    });
+
+    await waitFor(() => {
+      expect(getMediaDuration).toHaveBeenCalled();
+    });
+
+    expect(result.current.fileDuration).toBeNull();
   });
 });

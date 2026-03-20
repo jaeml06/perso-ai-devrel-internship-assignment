@@ -26,6 +26,7 @@ export function DubbingDashboardPage() {
     sourceUrl,
     mediaType,
     dubbedVideoUrl,
+    fileDuration,
     submit,
     retry,
   } = useDubbingCreate();
@@ -55,6 +56,7 @@ export function DubbingDashboardPage() {
           voicesError={voicesError}
           onVoicesRetry={() => { void loadVoices(); }}
           validationErrors={validationErrors}
+          fileDuration={fileDuration}
           disabled={isProcessing}
           onSubmit={() => { void submit(); }}
         />

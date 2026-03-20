@@ -50,6 +50,12 @@ export function AudioPlayer({ audioUrl, showDownload = true, downloadFilename = 
     setCurrentTime(time);
   }
 
+  function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
   return (
     <div className='rounded-2xl border border-border bg-card p-4 flex flex-col gap-3'>
       <audio
@@ -77,16 +83,21 @@ export function AudioPlayer({ audioUrl, showDownload = true, downloadFilename = 
           )}
         </button>
         {duration > 0 && (
-          <input
-            type="range"
-            aria-label="재생 위치"
-            className='flex-1 accent-primary'
-            min={0}
-            max={duration}
-            value={currentTime}
-            step={0.1}
-            onChange={handleSeek}
-          />
+          <>
+            <input
+              type="range"
+              aria-label="재생 위치"
+              className='flex-1 accent-primary'
+              min={0}
+              max={duration}
+              value={currentTime}
+              step={0.1}
+              onChange={handleSeek}
+            />
+            <span className='text-xs text-muted-foreground tabular-nums whitespace-nowrap'>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </>
         )}
       </div>
       {showDownload ? (

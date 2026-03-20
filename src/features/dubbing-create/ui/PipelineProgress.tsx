@@ -12,6 +12,7 @@ interface PipelineProgressProps {
 }
 
 const STEPS: { status: DubbingPipelineStatus; label: string }[] = [
+  { status: 'cropping', label: '크롭' },
   { status: 'transcribing', label: 'STT' },
   { status: 'translating', label: '번역' },
   { status: 'synthesizing', label: 'TTS' },
@@ -20,7 +21,7 @@ const STEPS: { status: DubbingPipelineStatus; label: string }[] = [
 ];
 
 const STATUS_ORDER: DubbingPipelineStatus[] = [
-  'idle', 'transcribing', 'translating', 'synthesizing', 'merging', 'complete',
+  'idle', 'cropping', 'transcribing', 'translating', 'synthesizing', 'merging', 'complete',
 ];
 
 function getStepState(

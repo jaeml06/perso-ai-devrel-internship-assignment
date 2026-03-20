@@ -14,6 +14,7 @@ const defaultProps = {
   onVoicesRetry: vi.fn(),
   validationErrors: {},
   onSubmit: vi.fn(),
+  fileDuration: null as number | null,
 };
 
 describe('DubbingForm', () => {
@@ -90,5 +91,29 @@ describe('DubbingForm', () => {
     render(<DubbingForm {...defaultProps} file={file} voiceId="voice123" disabled />);
     const btn = screen.getByRole('button', { name: /더빙 생성/i });
     expect(btn).toHaveClass('disabled:opacity-50');
+  });
+
+  it('fileDuration=300 (5분) 전달 시 크롭 안내 메시지를 표시한다', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} fileDuration={300} />);
+    expect(screen.getByText(/처음 1분만 처리됩니다/)).toBeInTheDocument();
+    expect(screen.getByText(/5분 0초/)).toBeInTheDocument();
+  });
+
+  it('fileDuration=30 (30초) 전달 시 크롭 안내 미표시', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} fileDuration={30} />);
+    expect(screen.queryByText(/처음 1분만 처리됩니다/)).not.toBeInTheDocument();
+  });
+
+  it('fileDuration=null (파일 미선택) 시 크롭 안내 미표시', () => {
+    render(<DubbingForm {...defaultProps} fileDuration={null} />);
+    expect(screen.queryByText(/처음 1분만 처리됩니다/)).not.toBeInTheDocument();
+  });
+
+  it('fileDuration=60 (정확히 1분) 시 크롭 안내 미표시', () => {
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' });
+    render(<DubbingForm {...defaultProps} file={file} fileDuration={60} />);
+    expect(screen.queryByText(/처음 1분만 처리됩니다/)).not.toBeInTheDocument();
   });
 });
