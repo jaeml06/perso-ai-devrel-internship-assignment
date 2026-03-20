@@ -36,7 +36,7 @@ export async function mergeVideoAudio({ videoFile, audioBlob }: MergeVideoAudioP
     ]);
 
     const data = await ffmpeg.readFile('output.mp4');
-    const blob = new Blob([data], { type: 'video/mp4' });
+    const blob = new Blob([data instanceof Uint8Array ? new Uint8Array(data.buffer) : data], { type: 'video/mp4' });
     const url = URL.createObjectURL(blob);
 
     return { url, blob };
