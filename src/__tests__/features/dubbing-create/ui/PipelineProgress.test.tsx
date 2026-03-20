@@ -75,6 +75,30 @@ describe('PipelineProgress', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('cropping 상태에서 크롭 메시지가 표시된다', () => {
+    render(
+      <PipelineProgress pipelineStatus="cropping" errorMessage={null} onRetry={vi.fn()} />,
+    );
+    expect(screen.getByText(/미디어를 1분으로 자르는 중/)).toBeInTheDocument();
+    const cropStep = screen.getByText(/크롭/).closest('[data-state]');
+    expect(cropStep).toHaveAttribute('data-state', 'active');
+  });
+
+  it('cropping → transcribing 전환 시 크롭이 done, STT가 active가 된다', () => {
+    const { rerender } = render(
+      <PipelineProgress pipelineStatus="cropping" errorMessage={null} onRetry={vi.fn()} />,
+    );
+
+    rerender(
+      <PipelineProgress pipelineStatus="transcribing" errorMessage={null} onRetry={vi.fn()} />,
+    );
+
+    const cropStep = screen.getByText(/크롭/).closest('[data-state]');
+    const sttStep = screen.getByText(/^STT$/i).closest('[data-state]');
+    expect(cropStep).toHaveAttribute('data-state', 'done');
+    expect(sttStep).toHaveAttribute('data-state', 'active');
+  });
+
   it('진행 상태 메시지가 aria-live 영역에 표시된다', () => {
     render(
       <PipelineProgress pipelineStatus="transcribing" errorMessage={null} onRetry={vi.fn()} />,
