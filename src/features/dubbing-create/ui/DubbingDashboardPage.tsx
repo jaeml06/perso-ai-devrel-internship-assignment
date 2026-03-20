@@ -5,6 +5,8 @@ import { isProcessingPipelineStatus } from '@/features/dubbing-create/lib/pipeli
 import { DubbingForm } from '@/features/dubbing-create/ui/DubbingForm';
 import { PipelineProgress } from '@/features/dubbing-create/ui/PipelineProgress';
 import { AudioPlayer } from '@/features/dubbing-create/ui/AudioPlayer';
+import { MediaPlayer } from '@/features/dubbing-create/ui/MediaPlayer';
+import { DualMediaView } from '@/features/dubbing-create/ui/DualMediaView';
 
 export function DubbingDashboardPage() {
   const {
@@ -21,12 +23,21 @@ export function DubbingDashboardPage() {
     pipelineStatus,
     errorMessage,
     audioUrl,
+    sourceUrl,
+    mediaType,
+    dubbedVideoUrl,
     submit,
     retry,
   } = useDubbingCreate();
 
   const isProcessing = isProcessingPipelineStatus(pipelineStatus);
-  const shouldShowAudioPlayer = pipelineStatus === 'complete' && audioUrl !== null;
+  const isComplete = pipelineStatus === 'complete' && audioUrl !== null;
+  const shouldShowDualView = isComplete && sourceUrl !== null && mediaType !== null;
+  const shouldShowAudioPlayerOnly = isComplete && !shouldShowDualView;
+  const shouldShowPreview = sourceUrl !== null && mediaType !== null && !isComplete;
+
+  const dubbedMediaType = mediaType === 'video' && dubbedVideoUrl ? 'video' as const : 'audio' as const;
+  const dubbedUrl = dubbedMediaType === 'video' ? dubbedVideoUrl! : audioUrl;
 
   return (
     <main className='flex-1 py-8 px-4'>
@@ -48,13 +59,26 @@ export function DubbingDashboardPage() {
           onSubmit={() => { void submit(); }}
         />
 
+        {shouldShowPreview ? (
+          <MediaPlayer mediaUrl={sourceUrl} mediaType={mediaType} />
+        ) : null}
+
         <PipelineProgress
           pipelineStatus={pipelineStatus}
           errorMessage={errorMessage}
           onRetry={() => { void retry(); }}
         />
 
-        {shouldShowAudioPlayer ? <AudioPlayer audioUrl={audioUrl} /> : null}
+        {shouldShowDualView ? (
+          <DualMediaView
+            sourceUrl={sourceUrl}
+            sourceMediaType={mediaType}
+            dubbedUrl={dubbedUrl!}
+            dubbedMediaType={dubbedMediaType}
+          />
+        ) : null}
+
+        {shouldShowAudioPlayerOnly ? <AudioPlayer audioUrl={audioUrl} /> : null}
       </div>
     </main>
   );
